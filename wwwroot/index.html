@@ -27,6 +27,18 @@
         <a class="dismiss">🗙</a>
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
+    <script type="text/javascript">
+    (function () {
+        var params = new URLSearchParams(window.location.search);
+        if (params.has('redirect')) {
+            var path = params.get('redirect');
+            var query = params.get('q');
+            var hash = params.get('h');
+            var newPath = '/' + path + (query ? '?' + query : '') + (hash ? '#' + hash : '');
+            window.history.replaceState(null, '', newPath);
+        }
+    })();
+</script>
 </body>
 
 </html>
