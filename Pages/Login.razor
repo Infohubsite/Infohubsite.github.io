@@ -47,6 +47,8 @@
     </div>
 }
 
+<p>@Http.BaseAddress</p>
+
 
 @code {
     private LoginModel loginModel = new();
@@ -82,7 +84,7 @@
                     PasswordHash = ComputeSha256Hash(loginModel.Password)
                 };
 
-                HttpResponseMessage response = await Http.PostAsJsonAsync("https://localhost:7140/Auth/Login", requestPayload);
+                HttpResponseMessage response = await Http.PostAsJsonAsync("/Auth/Login", requestPayload);
                 if (response.IsSuccessStatusCode)
                 {
                     messageCssClass = "alert-success";
