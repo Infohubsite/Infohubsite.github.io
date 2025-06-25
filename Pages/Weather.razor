@@ -51,7 +51,7 @@ else
     {
         try
         {
-            forecasts = await Http.GetFromJsonAsync<WeatherForecast[]>("http://localhost:5276/WeatherForecast");
+            forecasts = await Http.GetFromJsonAsync<WeatherForecast[]>("https://localhost:7140/WeatherForecast");
         }
         catch (Exception ex)
         {

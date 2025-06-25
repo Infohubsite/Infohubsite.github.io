@@ -82,7 +82,7 @@
                     PasswordHash = ComputeSha256Hash(loginModel.Password)
                 };
 
-                HttpResponseMessage response = await Http.PostAsJsonAsync("http://localhost:5276/Auth/Login", requestPayload);
+                HttpResponseMessage response = await Http.PostAsJsonAsync("https://localhost:7140/Auth/Login", requestPayload);
                 if (response.IsSuccessStatusCode)
                 {
                     messageCssClass = "alert-success";
