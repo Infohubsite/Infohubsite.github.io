@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <script type="text/javascript">
+        var path = window.location.pathname;
+        var newUrl = '/?redirect=' + encodeURIComponent(path.substring(1)) +
+                     '&q=' + encodeURIComponent(window.location.search.substring(1)) +
+                     '&h=' + encodeURIComponent(window.location.hash.substring(1));
+        window.location.replace(newUrl);
+    </script>
+</body>
+</html>
