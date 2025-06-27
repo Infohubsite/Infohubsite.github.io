@@ -1,0 +1,47 @@
+﻿@page "/randomword"
+@inject IHttpClient Http
+
+<PageTitle>Random Word</PageTitle>
+
+<h3>Random Word</h3>
+
+@if (word == null)
+{
+    @if (error == null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else
+    {
+        <p><em>@error</em></p>
+    }
+}
+else
+{
+    <p>@word</p>
+}
+
+@code {
+    private string? word;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            HttpResponseMessage response = await Http.GetAsync("/RandomWord");
+            if (response.IsSuccessStatusCode)
+            {
+                word = await response.Content.ReadAsStringAsync();
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                word = "Log in to see the random word";
+            }
+        }
+        catch (Exception ex)
+        {
+            error = ex.ToString();
+        }
+    }
+}

@@ -1,5 +1,6 @@
 ﻿@page "/weather"
-@inject HttpClient Http
+@using System.Text.Json
+@inject IHttpClient Http
 
 <PageTitle>Weather</PageTitle>
 
@@ -51,7 +52,15 @@ else
     {
         try
         {
-            forecasts = await Http.GetFromJsonAsync<WeatherForecast[]>("/WeatherForecast");
+            HttpResponseMessage response = await Http.GetAsync("/WeatherForecast");
+            response.EnsureSuccessStatusCode();
+
+            forecasts = await response.Content.ReadFromJsonAsync<WeatherForecast[]>();
+
+            if (forecasts == null)
+            {
+                error = $"Could not load forecasts from the following response: {await response.Content.ReadAsStringAsync()}";
+            }
         }
         catch (Exception ex)
         {

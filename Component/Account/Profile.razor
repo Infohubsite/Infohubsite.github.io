@@ -1,0 +1,26 @@
+﻿@page "/profile"
+@using Frontend.Services
+@inject NavigationManager NavigationManager
+@inject IAccountManagement Acct
+
+<PageTitle>Profile</PageTitle>
+
+<h3>Profile</h3>
+
+<AuthorizeView>
+	<Authorized>
+		<h1>Hello, @context.User.Identity?.Name!</h1>
+		<button class="btn btn-primary" @onclick="Logout">Log out</button>
+	</Authorized>
+	<NotAuthorized>
+		<p>You are not authorized to view this page. Please log in.</p>
+		<button class="btn btn-primary" @onclick="@(() => NavigationManager.NavigateTo("/login"))">Go to login</button>
+	</NotAuthorized>
+</AuthorizeView>
+
+@code {
+	private void Logout()
+	{
+		NavigationManager.NavigateTo("/logout");
+	}
+}
