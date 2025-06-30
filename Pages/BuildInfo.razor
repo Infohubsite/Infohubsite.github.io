@@ -18,6 +18,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        buildInfo = await CF.CreateClient("OriginClient").GetFromJsonAsync<Frontend.Model.BuildInfo>("build-info.json");
+        buildInfo = await CF.CreateClient("OriginClient").GetFromJsonAsync<Frontend.Model.BuildInfo>($"build-info.json?v={DateTime.UtcNow.Ticks}");
     }
 }
