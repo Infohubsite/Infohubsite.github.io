@@ -1,6 +1,6 @@
 ﻿using Frontend.Model;
+using Frontend.Utils;
 using Microsoft.AspNetCore.Components.Authorization;
-using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -47,33 +47,34 @@ namespace Frontend.Services
                 var token = await _localStorage.GetItemAsync<string>("authToken");
 
                 if (string.IsNullOrEmpty(token))
-                    return new AuthenticationState(new ClaimsPrincipal(identity));
+                    throw new GetOutException();
 
                 Dictionary<string, object>? dict = ParsePayloadFromJwt(token);
-                if (dict != null && dict.TryGetValue("exp", out object? expObject))
+                if (dict == null || !dict.TryGetValue("exp", out object? expObject) || expObject == null)
                 {
-                    long expValue = Convert.ToInt64(expObject);
-                    DateTimeOffset expirationTime = DateTimeOffset.FromUnixTimeSeconds(expValue);
-                    if (expirationTime > DateTimeOffset.UtcNow)
-                    {
-                        identity = new ClaimsIdentity(
-                            ParseClaimsFromJwt(dict),
-                            "jwt"
-                        );
-                        _authenticated = true;
-                    }
-                    else
-                    {
-                        _logger.LogInformation("Authentication token has expired. Clearing storage.");
-                        await _localStorage.RemoveItemAsync("authToken");
-                    }
+                    await _localStorage.RemoveItemAsync("authToken"); // clear the fucked up token
+                    throw new GetOutException();
                 }
-                else
+
+                if (!long.TryParse(expObject.ToString(), out long expValue))
                 {
-                    _logger.LogWarning("Authentication token is malformed. Clearing storage.");
-                    await _localStorage.RemoveItemAsync("authToken");
+                    await _localStorage.RemoveItemAsync("authToken"); // clear the fucked up token
+                    throw new GetOutException();
                 }
+
+                if (DateTimeOffset.FromUnixTimeSeconds(expValue) <= DateTimeOffset.UtcNow)
+                {
+                    await _localStorage.RemoveItemAsync("authToken"); // clear expired token
+                    throw new GetOutException();
+                }
+
+                identity = new ClaimsIdentity(
+                    ParseClaimsFromJwt(dict),
+                    "jwt"
+                );
+                _authenticated = true;
             }
+            catch (GetOutException) { }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An error occurred during authentication state retrieval.");
