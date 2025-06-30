@@ -39,50 +39,48 @@ namespace Frontend.Services
 
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
-            this._authenticated = false;
-            ClaimsIdentity identity = new();
-            //this._httpClient.DefaultRequestHeaders.Authorization = null;
+            _authenticated = false;
+            var identity = new ClaimsIdentity();
 
             try
             {
-                /*HttpResponseMessage? userResponse = await this._httpClient.GetAsync("Auth/Profile");
+                var token = await _localStorage.GetItemAsync<string>("authToken");
 
-                userResponse.EnsureSuccessStatusCode();
+                if (string.IsNullOrEmpty(token))
+                    return new AuthenticationState(new ClaimsPrincipal(identity));
 
-                string userJson = await userResponse.Content.ReadAsStringAsync();
-                UserProfile? userProfile = JsonSerializer.Deserialize<UserProfile>(userJson, this.jsonSerializerOptions);
-
-                if (userProfile != null)
+                Dictionary<string, object>? dict = ParsePayloadFromJwt(token);
+                if (dict != null && dict.TryGetValue("exp", out object? expObject))
                 {
-                    List<Claim> claims = [
-                        new Claim(ClaimTypes.Name, userProfile.Username)
-                        ];
-
-                    claims.AddRange(userProfile.Claims.Where(c => c.Key != ClaimTypes.Name).Select(c => new Claim(c.Key, c.Value)));
-
-                    HttpResponseMessage roleResponse = await this._httpClient.GetAsync("Auth/Role");
-
-                    roleResponse.EnsureSuccessStatusCode();
-
-                    claims.Add(new Claim(ClaimTypes.Role, await roleResponse.Content.ReadAsStringAsync()));
-
-                    var id = new ClaimsIdentity(claims, nameof(CustomAuthenticationStateProvider));
-                    user = new ClaimsPrincipal(id);
-                    this._authenticated = true;
-                }*/
-
-                string token = await this._localStorage.GetItemAsync<string>("authToken");
-                if (!string.IsNullOrEmpty(token))
+                    long expValue = Convert.ToInt64(expObject);
+                    DateTimeOffset expirationTime = DateTimeOffset.FromUnixTimeSeconds(expValue);
+                    if (expirationTime > DateTimeOffset.UtcNow)
+                    {
+                        identity = new ClaimsIdentity(
+                            ParseClaimsFromJwt(dict),
+                            "jwt"
+                        );
+                        _authenticated = true;
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Authentication token has expired. Clearing storage.");
+                        await _localStorage.RemoveItemAsync("authToken");
+                    }
+                }
+                else
                 {
-                    //this._httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-                    identity = new(ParseClaimsFromJwt(token), "jwt");
-                    _authenticated = true;
+                    _logger.LogWarning("Authentication token is malformed. Clearing storage.");
+                    await _localStorage.RemoveItemAsync("authToken");
                 }
             }
-            catch { } // sneaky peaky like
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "An error occurred during authentication state retrieval.");
+                await _localStorage.RemoveItemAsync("authToken");
+            }
 
-            return new AuthenticationState(new(identity));
+            return new AuthenticationState(new ClaimsPrincipal(identity));
         }
 
         public async Task<FormResult> LoginAsync(string username, string password)
@@ -123,9 +121,6 @@ namespace Frontend.Services
         }
         public async Task LogoutAsync()
         {
-            /*const string Empty = "{}";
-            var emptyContent = new StringContent(Empty, Encoding.UTF8, "application/json");
-            await this._httpClient.PostAsync("Auth/Logout", emptyContent);*/
             await this._localStorage.RemoveItemAsync("authToken");
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
@@ -161,15 +156,16 @@ namespace Frontend.Services
             return builder.ToString();
         }
 
-        private static List<Claim> ParseClaimsFromJwt(string jwt)
+        private static Dictionary<string, object>? ParsePayloadFromJwt(string jwt)
         {
-            List<Claim> claims = [];
             string payload = jwt.Split('.')[1];
             byte[] jsonBytes = ParseBase64WithoutPadding(payload);
-            Dictionary<string, object>? dict = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
-            if (dict != null)
-                claims.AddRange(dict.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? "")));
-            return claims;
+            return JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
+        }
+
+        private static IEnumerable<Claim> ParseClaimsFromJwt(Dictionary<string, object> jwtPayload)
+        {
+            return jwtPayload.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? ""));
         }
 
         private static byte[] ParseBase64WithoutPadding(string base64)
