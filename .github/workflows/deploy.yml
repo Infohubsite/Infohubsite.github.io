@@ -1,4 +1,4 @@
-﻿name: Deploy Pages
+name: Deploy Pages
 
 on:
   push:
@@ -25,6 +25,13 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0
+
+      - name: Generate Build Info File
+        run: |
+          echo '{' > wwwroot/build-info.json
+          echo '  "commitMessage": "${{ github.event.head_commit.message }}",' >> wwwroot/build-info.json
+          echo '  "buildTime": "'$(date -u --iso-8601=seconds)'"' >> wwwroot/build-info.json
+          echo '}' >> wwwroot/build-info.json
 
       - name: Publish .NET Project
         run: dotnet publish Frontend.csproj --configuration Release --output build
