@@ -1,5 +1,6 @@
 ﻿using Frontend.Model;
 using Microsoft.AspNetCore.Components.Authorization;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Security.Cryptography;
@@ -8,28 +9,43 @@ using System.Text.Json;
 
 namespace Frontend.Services
 {
-    public class CustomAuthenticationStateProvider(IHttpClientFactory httpClientFactory, ILogger<CustomAuthenticationStateProvider> logger) : AuthenticationStateProvider, IAccountManagement, IHttpClient
+    public interface IAccountManagement
+    {
+        public Task<FormResult> LoginAsync(string username, string password);
+        public Task LogoutAsync();
+        public Task<bool> CheckAuthenticatedAsync();
+        public Task<string> GetRoleAsync();
+    }
+
+    public class CustomAuthenticationStateProvider(IHttpClientFactory httpClientFactory, ILogger<CustomAuthenticationStateProvider> logger, ILocalStorageService localStorage) : AuthenticationStateProvider, IAccountManagement
     {
         private readonly ILogger<CustomAuthenticationStateProvider> _logger = logger;
+        private readonly ILocalStorageService _localStorage = localStorage;
 
         private bool _authenticated = false;
         private readonly ClaimsPrincipal Unauthenticated = new(new ClaimsIdentity());
 
-        private readonly HttpClient _httpClient = httpClientFactory.CreateClient("Auth");
+        private readonly HttpClient _httpClient = httpClientFactory.CreateClient("Default");
 
         private readonly JsonSerializerOptions jsonSerializerOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
+        private class LoginResponse
+        {
+            public string Token { get; set; } =string.Empty;
+        }
+
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             this._authenticated = false;
-            ClaimsPrincipal user = this.Unauthenticated;
+            ClaimsIdentity identity = new();
+            //this._httpClient.DefaultRequestHeaders.Authorization = null;
 
             try
             {
-                HttpResponseMessage? userResponse = await this._httpClient.GetAsync("Auth/Profile");
+                /*HttpResponseMessage? userResponse = await this._httpClient.GetAsync("Auth/Profile");
 
                 userResponse.EnsureSuccessStatusCode();
 
@@ -53,27 +69,37 @@ namespace Frontend.Services
                     var id = new ClaimsIdentity(claims, nameof(CustomAuthenticationStateProvider));
                     user = new ClaimsPrincipal(id);
                     this._authenticated = true;
+                }*/
+
+                string token = await this._localStorage.GetItemAsync<string>("authToken");
+                if (!string.IsNullOrEmpty(token))
+                {
+                    //this._httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+                    identity = new(ParseClaimsFromJwt(token), "jwt");
+                    _authenticated = true;
                 }
             }
-            catch { }
+            catch { } // sneaky peaky like
 
-            return new AuthenticationState(user);
+            return new AuthenticationState(new(identity));
         }
 
         public async Task<FormResult> LoginAsync(string username, string password)
         {
-            HttpResponseMessage? result = null;
+            HttpResponseMessage? response = null;
             try
             {
-                result = await this._httpClient.PostAsJsonAsync(
+                response = await this._httpClient.PostAsJsonAsync(
                     "Auth/Login",
                     new
                     {
                         Username = username,
                         PasswordHash = ComputeSha256Hash(password)
                     });
-                if (result.IsSuccessStatusCode)
+                if (response.IsSuccessStatusCode)
                 {
+                    await this._localStorage.SetItemAsync("authToken", ((await response.Content.ReadFromJsonAsync<LoginResponse>()) ?? throw new NullReferenceException("Token response from server could not be converted to LoginRespose object")).Token);
                     NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
                     return new FormResult { Succeeded = true };
                 }
@@ -92,14 +118,15 @@ namespace Frontend.Services
             return new FormResult
             {
                 Succeeded = false,
-                ErrorList = result == null ? ["Couldn't receve a response from the server"] : [result.ToString()]
+                ErrorList = response == null ? ["Invalid server response"] : [response.ToString()]
             };
         }
         public async Task LogoutAsync()
         {
-            const string Empty = "{}";
+            /*const string Empty = "{}";
             var emptyContent = new StringContent(Empty, Encoding.UTF8, "application/json");
-            await this._httpClient.PostAsync("Auth/Logout", emptyContent);
+            await this._httpClient.PostAsync("Auth/Logout", emptyContent);*/
+            await this._localStorage.RemoveItemAsync("authToken");
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
         public async Task<bool> CheckAuthenticatedAsync()
@@ -122,16 +149,6 @@ namespace Frontend.Services
 
             return string.Empty;
         }
-
-        public Task<HttpResponseMessage> GetAsync(string? responseUri) => this._httpClient.GetAsync(responseUri);
-        public Task<HttpResponseMessage> GetAsync(string? requestUri, CancellationToken cancellationToken) => this._httpClient.GetAsync(requestUri, cancellationToken);
-        public Task<HttpResponseMessage> GetAsync(string? requestUri, HttpCompletionOption completionOption) => this._httpClient.GetAsync(requestUri, completionOption);
-        public Task<HttpResponseMessage> GetAsync(string? requestUri, HttpCompletionOption completionOption, CancellationToken cancellationToken) => this._httpClient.GetAsync(requestUri, completionOption, cancellationToken);
-        public Task<HttpResponseMessage> GetAsync(Uri? responseUri) => this._httpClient.GetAsync(responseUri);
-        public Task<HttpResponseMessage> GetAsync(Uri? requestUri, CancellationToken cancellationToken) => this._httpClient.GetAsync(requestUri, cancellationToken);
-        public Task<HttpResponseMessage> GetAsync(Uri? requestUri, HttpCompletionOption completionOption) => this._httpClient.GetAsync(requestUri, completionOption);
-        public Task<HttpResponseMessage> GetAsync(Uri? requestUri, HttpCompletionOption completionOption, CancellationToken cancellationToken) => this._httpClient.GetAsync(requestUri, completionOption, cancellationToken);
-
         private static string ComputeSha256Hash(string rawData)
         {
             byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawData));
@@ -142,6 +159,28 @@ namespace Frontend.Services
                 builder.Append(bytes[i].ToString("x2")); // "x2" for lowercase hex
             }
             return builder.ToString();
+        }
+
+        private static List<Claim> ParseClaimsFromJwt(string jwt)
+        {
+            List<Claim> claims = [];
+            string payload = jwt.Split('.')[1];
+            byte[] jsonBytes = ParseBase64WithoutPadding(payload);
+            Dictionary<string, object>? dict = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
+            if (dict != null)
+                claims.AddRange(dict.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? "")));
+            return claims;
+        }
+
+        private static byte[] ParseBase64WithoutPadding(string base64)
+        {
+            switch (base64.Length % 4)
+            {
+                case 2: base64 += "=="; break;
+                case 3: base64 += "="; break;
+            }
+
+            return Convert.FromBase64String(base64);
         }
     }
 }

@@ -11,20 +11,23 @@ namespace Frontend
         {
             var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
-            builder.Services.AddAuthorizationCore();
             builder.RootComponents.Add<App>("#app");
             builder.RootComponents.Add<HeadOutlet>("head::after");
 
+            builder.Services.AddTransient<AuthenticationHeaderHandler>();
+            builder.Services.AddHttpClient("Default", client =>
+            {
+                client.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException("Backend origin URL ('Origins:Backend') is not configured."));
+            })
+                .AddHttpMessageHandler<AuthenticationHeaderHandler>();
+            builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Default"));
+
+            builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
+
+            builder.Services.AddAuthorizationCore();
             builder.Services.AddCascadingAuthenticationState();
-            builder.Services.AddTransient<CustomHttpHandler>();
             builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
             builder.Services.AddScoped(sp => (IAccountManagement)sp.GetRequiredService<AuthenticationStateProvider>());
-            builder.Services.AddScoped(sp => (IHttpClient)sp.GetRequiredService<AuthenticationStateProvider>());
-
-            builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.Configuration["Origins:Frontend"] ?? throw new InvalidOperationException($"Origins:Frontend cannot be null")) });
-
-            builder.Services.AddHttpClient("Auth", opt => opt.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException($"Origins:Backend cannot be null")))
-                .AddHttpMessageHandler<CustomHttpHandler>();
 
             await builder.Build().RunAsync();
         }
