@@ -1,9 +1,10 @@
-﻿name: Deploy Pages
+name: Deploy Pages
 
 on:
   push:
     branches: [ main ]
 
+# Sets permissions for the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -24,10 +25,20 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0
+          dotnet-version: 8.0 # Or your target .NET version
+
+      # *** NEW STEP ADDED HERE ***
+      - name: Generate Build Info File
+        run: |
+          echo '{' > Frontend/wwwroot/build-info.json
+          echo '  "commitMessage": "${{ github.event.head_commit.message }}",' >> Frontend/wwwroot/build-info.json
+          echo '  "buildTime": "'$(date -u --iso-8601=seconds)'"' >> Frontend/wwwroot/build-info.json
+          echo '}' >> Frontend/wwwroot/build-info.json
+        # IMPORTANT: Replace "Frontend" with the name of your Blazor project directory.
 
       - name: Publish .NET Project
         run: dotnet publish Frontend.csproj --configuration Release --output build
+        # IMPORTANT: Ensure "Frontend.csproj" is the correct path to your .csproj file.
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
