@@ -21,6 +21,10 @@ namespace Frontend
             })
                 .AddHttpMessageHandler<AuthenticationHeaderHandler>();
             builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Default"));
+            builder.Services.AddHttpClient("OriginClient", client =>
+            {
+                client.BaseAddress = new Uri(builder.Configuration["Origins:Frontend"] ?? throw new InvalidOperationException("Frontend origin URL ('Origins:Frontend') is not configured."));
+            });
 
             builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
 

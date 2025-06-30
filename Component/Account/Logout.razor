@@ -15,7 +15,6 @@
 </AuthorizeView>
 
 @code {
-	private AuthorizeView? authView;
 	protected override async Task OnInitializedAsync()
 	{
 		if (await Acct.CheckAuthenticatedAsync())

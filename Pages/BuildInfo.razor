@@ -1,0 +1,23 @@
+﻿@page "/build-info"
+@inject IHttpClientFactory CF
+
+<h3>Build Information</h3>
+
+@if (buildInfo != null)
+{
+    <p><strong>Latest Commit Message:</strong> @buildInfo.CommitMessage</p>
+    <p><strong>Build Time (UTC):</strong> @buildInfo.BuildTime.ToString("yyyy-MM-dd HH:mm:ss")</p>
+}
+else
+{
+    <p>Loading build information...</p>
+}
+
+@code {
+    private Frontend.Model.BuildInfo? buildInfo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        buildInfo = await CF.CreateClient("OriginClient").GetFromJsonAsync<Frontend.Model.BuildInfo>("build-info.json");
+    }
+}
