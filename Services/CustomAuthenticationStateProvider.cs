@@ -94,7 +94,7 @@ namespace Frontend.Services
                     new
                     {
                         Username = username,
-                        PasswordHash = ComputeSha256Hash(password)
+                        PasswordHash = password
                     });
                 if (response.IsSuccessStatusCode)
                 {
@@ -145,17 +145,6 @@ namespace Frontend.Services
 
             return string.Empty;
         }
-        private static string ComputeSha256Hash(string rawData)
-        {
-            byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawData));
-
-            StringBuilder builder = new();
-            for (int i = 0; i < bytes.Length; i++)
-            {
-                builder.Append(bytes[i].ToString("x2")); // "x2" for lowercase hex
-            }
-            return builder.ToString();
-        }
 
         private static Dictionary<string, object>? ParsePayloadFromJwt(string jwt)
         {
@@ -163,12 +152,10 @@ namespace Frontend.Services
             byte[] jsonBytes = ParseBase64WithoutPadding(payload);
             return JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
         }
-
         private static IEnumerable<Claim> ParseClaimsFromJwt(Dictionary<string, object> jwtPayload)
         {
             return jwtPayload.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? ""));
         }
-
         private static byte[] ParseBase64WithoutPadding(string base64)
         {
             switch (base64.Length % 4)
