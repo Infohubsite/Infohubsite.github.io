@@ -94,7 +94,7 @@ namespace Frontend.Services
                     new
                     {
                         Username = username,
-                        PasswordHash = password
+                        Password = password
                     });
                 if (response.IsSuccessStatusCode)
                 {
