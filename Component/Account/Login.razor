@@ -23,33 +23,22 @@
             <DataAnnotationsValidator />
 
             <MudCard>
+
                 <MudCardHeader>
                     <CardHeaderContent>
                         <MudText Typo="Typo.h5">Login</MudText>
                     </CardHeaderContent>
                 </MudCardHeader>
                 <MudCardContent>
-                    <MudTextField Label="Username"
-                                  @bind-Value="loginModel.Username"
-                                  For="@(() => loginModel.Username)"
-                                  Required="true" />
-
-                    <MudTextField Label="Password" Class="mt-3"
-                                  @bind-Value="loginModel.Password"
-                                  For="@(() => loginModel.Password)"
-                                  InputType="InputType.Password"
-                                  Required="true" />
+                    <MudTextField Label="Username" @bind-Value="loginModel.Username" For="@(() => loginModel.Username)" Required="true" />
+                    <MudTextField Label="Password" Class="mt-3" @bind-Value="loginModel.Password" For="@(() => loginModel.Password)" InputType="InputType.Password" Required="true" />
                 </MudCardContent>
                 <MudCardActions>
-                    <MudButton ButtonType="ButtonType.Submit"
-                               Variant="Variant.Filled"
-                               Color="Color.Primary"
-                               Disabled="@loading"
-                               Loading="@loading"
-                               Class="ml-auto">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@loading" Loading="@loading" Class="ml-auto">
                         Login
                     </MudButton>
                 </MudCardActions>
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" hidden="@(!loading)" />
             </MudCard>
         </EditForm>
     </MudItem>
@@ -60,7 +49,6 @@
     private bool loading, errors = false;
     private string[] errorList = [];
     private LoginModel loginModel = new();
-    private object _lock = new();
 
     public class LoginModel
     {
@@ -73,37 +61,36 @@
 
     private async Task HandleLogin()
     {
-        bool taken = false;
+        if (loading)
+        {
+            return;
+        }
+
+        loading = true;
+        errors = false;
+
         try
         {
-            Monitor.TryEnter(_lock, 0, ref taken);
-
-            if (taken)
+            var result = await Acct.LoginAsync(loginModel.Username, loginModel.Password);
+            if (!result.Succeeded)
             {
-                loading = true;
-                errors = false;
-                errorList = [];
-
-                var result = await Acct.LoginAsync(loginModel.Username, loginModel.Password);
-                if (!result.Succeeded)
-                {
-                    errors = true;
-                    errorList = result.ErrorList;
-                }
+                errors = true;
+                errorList = result.ErrorList;
             }
+        }
+        catch (HttpRequestException)
+        {
+            errors = true;
+            errorList = ["Problems connecting to the server"];
         }
         catch (Exception ex)
         {
             errors = true;
-            errorList = [$"Unknown exception occoured: {ex}"];
+            errorList = [$"An unexpected error occurred: {ex.Message}"];
         }
         finally
         {
-            if (taken)
-            {
-                loading = false;
-                Monitor.Exit(_lock);
-            }
+            loading = false;
         }
     }
 }

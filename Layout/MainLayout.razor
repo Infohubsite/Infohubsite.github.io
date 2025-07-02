@@ -1,6 +1,9 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
 @inject IAccountManagement Acct
 @inject ILocalStorageService LS
+@inject INotificationService NS
+@inject ISnackbar Snackbar
 
 <MudThemeProvider @bind-IsDarkMode="_isDarkMode" />
 <MudDialogProvider />
@@ -36,6 +39,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        NS.OnShow += ShowSnackbar;
+
         var storedTheme = await LS.GetItemAsync<string>("theme");
         _isDarkMode = storedTheme != "light";
     }
@@ -47,8 +52,15 @@
         await LS.SetItemAsync<string>("theme", newTheme);
     }
 
-    private async Task LogoutAsync()
-    {
+    private async Task LogoutAsync() =>
         await Acct.LogoutAsync();
+
+    private Task ShowSnackbar(string message, Severity severity)
+    {
+        Snackbar.Add(message, severity, config => { config.CloseAfterNavigation = true; });
+        return Task.CompletedTask;
     }
+
+    public void Dispose() =>
+        NS.OnShow -= ShowSnackbar;
 }

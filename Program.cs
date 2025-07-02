@@ -1,8 +1,9 @@
-using MudBlazor.Services;
 using Frontend.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using MudBlazor.Services;
+using Polly;
 
 namespace Frontend
 {
@@ -15,12 +16,25 @@ namespace Frontend
             builder.RootComponents.Add<App>("#app");
             builder.RootComponents.Add<HeadOutlet>("head::after");
 
+            builder.Services.AddSingleton<INotificationService, NotificationService>();
+            builder.Services.AddTransient<GlobalExceptionHandler>();
             builder.Services.AddTransient<AuthenticationHeaderHandler>();
             builder.Services.AddHttpClient("Default", client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException("Backend origin URL ('Origins:Backend') is not configured."));
             })
-                .AddHttpMessageHandler<AuthenticationHeaderHandler>();
+                .AddHttpMessageHandler<AuthenticationHeaderHandler>()
+                .AddPolicyHandler(Policy<HttpResponseMessage>
+                    .Handle<HttpRequestException>(ex => ex.StatusCode == null)
+                    .WaitAndRetryAsync(
+                        3,
+                        retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                        onRetry: (outcome, timespan, retryAttempt, context) =>
+                        {
+                            Console.WriteLine($"[Polly] Network error detected. Delaying for {timespan.TotalSeconds}s before retry {retryAttempt}/{3}. Reason: {outcome.Exception.Message}");
+                        }
+                    ));
+                //.AddHttpMessageHandler<GlobalExceptionHandler>();
             builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Default"));
             builder.Services.AddHttpClient("OriginClient", client =>
             {
