@@ -1,56 +1,52 @@
-﻿@layout LoginLayout
-@page "/Account/Login"
-@attribute [AllowAnonymous]
+﻿@attribute [AllowAnonymous]
 @using Microsoft.AspNetCore.Authorization
 @using System.ComponentModel.DataAnnotations
 @inject IAccountManagement Acct
 
 <PageTitle>Login</PageTitle>
 
-<h3>Login</h3>
+<div class="mt-5">
+    @if (errors)
+    {
+        <div style="max-width: 500px; margin-left: auto; margin-right: auto;">
+            @foreach (string error in errorList)
+            {
+                <div class="alert alert-danger mt-3" role="alert">@error</div>
+            }
+        </div>
+    }
 
-<div class="card" style="max-width: 500px;">
-    <div class="card-body">
-        <EditForm Model="@loginModel" OnValidSubmit="@HandleLogin">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
 
-            <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <InputText id="username" class="form-control" @bind-Value="loginModel.Username" />
-            </div>
+    <div class="card mx-auto" style="max-width: 500px">
+        <div class="card-body">
+            <EditForm Model="@loginModel" OnValidSubmit="@HandleLogin">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
 
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <InputText id="password" type="password" class="form-control" @bind-Value="loginModel.Password" />
-            </div>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <InputText id="username" class="form-control" @bind-Value="loginModel.Username" />
+                </div>
 
-            <button type="submit" class="btn btn-primary" disabled="@(!success && !errors)">
-                <span>Login </span>
-                @if (!success && !errors)
-                {
-                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                }
-            </button>
-        </EditForm>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <InputText id="password" type="password" class="form-control" @bind-Value="loginModel.Password" />
+                </div>
+
+                <button type="submit" class="btn btn-primary" disabled="@loading">
+                    <span>Login </span>
+                    @if (loading)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    }
+                </button>
+            </EditForm>
+        </div>
     </div>
 </div>
 
-@if (success)
-{
-    <div class="alert alert-success mt-3" role="alert">Login successful</div>
-}
-@if (errors)
-{
-    foreach (string error in errorList)
-    {
-        <div class="alert alert-danger mt-3" role="alert">@error</div>
-    }
-}
-
-
 @code {
-    private bool success, errors = true;
+    private bool loading, errors = false;
     private string[] errorList = [];
     private LoginModel loginModel = new();
     private object _lock = new();
@@ -73,16 +69,12 @@
 
             if (taken)
             {
-                success = false;
+                loading = true;
                 errors = false;
                 errorList = [];
 
                 var result = await Acct.LoginAsync(loginModel.Username, loginModel.Password);
-                if (result.Succeeded)
-                {
-                    success = true;
-                }
-                else
+                if (!result.Succeeded)
                 {
                     errors = true;
                     errorList = result.ErrorList;
@@ -98,6 +90,7 @@
         {
             if (taken)
             {
+                loading = false;
                 Monitor.Exit(_lock);
             }
         }

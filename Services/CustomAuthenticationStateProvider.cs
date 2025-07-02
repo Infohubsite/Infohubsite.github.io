@@ -1,6 +1,6 @@
 ﻿using Frontend.Models;
+using Frontend.Utils;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
@@ -43,36 +43,32 @@ namespace Frontend.Services
                 var token = await _localStorage.GetItemAsync<string>("authToken");
 
                 if (string.IsNullOrEmpty(token))
-                    return new AuthenticationState(Unauthenticated);
+                    throw new UnauthenticatedException();
 
                 Dictionary<string, object>? dict = ParsePayloadFromJwt(token);
                 if (dict == null || !dict.TryGetValue("exp", out object? expObject) || expObject == null)
-                {
-                    await _localStorage.RemoveItemAsync("authToken"); // clear the fucked up token
-                    return new AuthenticationState(Unauthenticated);
-                }
+                    throw new UnauthenticatedException();
 
                 if (!long.TryParse(expObject.ToString(), out long expValue))
-                {
-                    await _localStorage.RemoveItemAsync("authToken"); // clear the fucked up token
-                    return new AuthenticationState(Unauthenticated);
-                }
+                    throw new UnauthenticatedException();
 
                 if (DateTimeOffset.FromUnixTimeSeconds(expValue) <= DateTimeOffset.UtcNow)
-                {
-                    await _localStorage.RemoveItemAsync("authToken"); // clear expired token
-                    return new AuthenticationState(Unauthenticated);
-                }
+                    throw new UnauthenticatedException();
 
                 _authenticated = true;
                 return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(dict), "jwt")));
+            }
+            catch (UnauthenticatedException)
+            {
+                await _localStorage.RemoveItemAsync("authToken");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An error occurred during authentication state retrieval.");
                 await _localStorage.RemoveItemAsync("authToken");
-                return new AuthenticationState(Unauthenticated);
             }
+
+            return new AuthenticationState(Unauthenticated);
         }
 
         public async Task<FormResult> LoginAsync(string username, string password)
@@ -93,6 +89,8 @@ namespace Frontend.Services
                     NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
                     return new FormResult { Succeeded = true };
                 }
+                else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    return new FormResult { Succeeded = false, ErrorList = ["Wrong credentials"] };
             }
             catch (Exception ex)
             {
