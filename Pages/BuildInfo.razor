@@ -14,10 +14,10 @@ else
 }
 
 @code {
-    private Frontend.Model.BuildInfo? buildInfo;
+    private Frontend.Models.BuildInfo? buildInfo;
 
     protected override async Task OnInitializedAsync()
     {
-        buildInfo = await CF.CreateClient("OriginClient").GetFromJsonAsync<Frontend.Model.BuildInfo>($"build-info.json?v={DateTime.UtcNow.Ticks}");
+        buildInfo = await CF.CreateClient("OriginClient").GetFromJsonAsync<Frontend.Models.BuildInfo>($"build-info.json?v={DateTime.UtcNow.Ticks}");
     }
 }

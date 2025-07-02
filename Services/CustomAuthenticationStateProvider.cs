@@ -1,10 +1,8 @@
-﻿using Frontend.Model;
-using Frontend.Utils;
+﻿using Frontend.Models;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components;
 using System.Net.Http.Json;
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 namespace Frontend.Services
@@ -40,48 +38,41 @@ namespace Frontend.Services
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             _authenticated = false;
-            var identity = new ClaimsIdentity();
-
             try
             {
                 var token = await _localStorage.GetItemAsync<string>("authToken");
 
                 if (string.IsNullOrEmpty(token))
-                    throw new GetOutException();
+                    return new AuthenticationState(Unauthenticated);
 
                 Dictionary<string, object>? dict = ParsePayloadFromJwt(token);
                 if (dict == null || !dict.TryGetValue("exp", out object? expObject) || expObject == null)
                 {
                     await _localStorage.RemoveItemAsync("authToken"); // clear the fucked up token
-                    throw new GetOutException();
+                    return new AuthenticationState(Unauthenticated);
                 }
 
                 if (!long.TryParse(expObject.ToString(), out long expValue))
                 {
                     await _localStorage.RemoveItemAsync("authToken"); // clear the fucked up token
-                    throw new GetOutException();
+                    return new AuthenticationState(Unauthenticated);
                 }
 
                 if (DateTimeOffset.FromUnixTimeSeconds(expValue) <= DateTimeOffset.UtcNow)
                 {
                     await _localStorage.RemoveItemAsync("authToken"); // clear expired token
-                    throw new GetOutException();
+                    return new AuthenticationState(Unauthenticated);
                 }
 
-                identity = new ClaimsIdentity(
-                    ParseClaimsFromJwt(dict),
-                    "jwt"
-                );
                 _authenticated = true;
+                return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(dict), "jwt")));
             }
-            catch (GetOutException) { }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An error occurred during authentication state retrieval.");
                 await _localStorage.RemoveItemAsync("authToken");
+                return new AuthenticationState(Unauthenticated);
             }
-
-            return new AuthenticationState(new ClaimsPrincipal(identity));
         }
 
         public async Task<FormResult> LoginAsync(string username, string password)
@@ -152,9 +143,22 @@ namespace Frontend.Services
             byte[] jsonBytes = ParseBase64WithoutPadding(payload);
             return JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
         }
-        private static IEnumerable<Claim> ParseClaimsFromJwt(Dictionary<string, object> jwtPayload)
+        private static List<Claim> ParseClaimsFromJwt(Dictionary<string, object> jwtPayload)
         {
-            return jwtPayload.Select(kvp => new Claim(kvp.Key, kvp.Value.ToString() ?? ""));
+            List<Claim> claims = [];
+            foreach (KeyValuePair<string, object> kvp in jwtPayload)
+            {
+                string val = kvp.Value.ToString() ?? string.Empty;
+                if (kvp.Key == ClaimTypes.Role && val.StartsWith('['))
+                {
+                    string[]? roles = JsonSerializer.Deserialize<string[]>(val);
+                    if (roles != null)
+                        claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
+                }
+                else
+                    claims.Add(new Claim(kvp.Key, val));
+            }
+            return claims;
         }
         private static byte[] ParseBase64WithoutPadding(string base64)
         {

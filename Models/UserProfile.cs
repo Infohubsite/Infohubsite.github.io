@@ -1,4 +1,4 @@
-﻿namespace Frontend.Model
+﻿namespace Frontend.Models
 {
     public class UserProfile
     {
