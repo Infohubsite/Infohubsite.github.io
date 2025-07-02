@@ -1,47 +1,43 @@
-﻿@page "/weather"
+﻿@page "/Weather"
 @using System.Text.Json
 @inject HttpClient Http
 
 <PageTitle>Weather</PageTitle>
 
-<h1>Weather</h1>
-
-<p>This component demonstrates fetching data from the server.</p>
+@* Use MudText for consistent typography with the rest of your app *@
+<MudText Typo="Typo.h3" GutterBottom="true">Weather</MudText>
+<MudText Class="mb-4">This component demonstrates fetching data from the server using a MudTable.</MudText>
 
 @if (forecasts == null)
 {
-    @if (error == null)
+    @* Show a styled alert if an error occurred during fetching *@
+    @if (error != null)
     {
-        <p><em>Loading...</em></p>
+        <MudAlert Severity="Severity.Error">@error</MudAlert>
     }
     else
     {
-        <p><em>@error</em></p>
+        @* Show a loading indicator while the data is being fetched *@
+        <MudProgressCircular Color="Color.Default" Indeterminate="true" />
     }
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Temp. (C)</th>
-                <th>Temp. (F)</th>
-                <th>Summary</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var forecast in forecasts)
-            {
-                <tr>
-                    <td>@forecast.Date.ToShortDateString()</td>
-                    <td>@forecast.TemperatureC</td>
-                    <td>@forecast.TemperatureF</td>
-                    <td>@forecast.Summary</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    @* The MudTable component is a powerful replacement for the standard HTML table *@
+    <MudTable Items="@forecasts" Hover="true" Striped="true" Bordered="true" Dense="true" Class="mt-4">
+        <HeaderContent>
+            <MudTh>Date</MudTh>
+            <MudTh>Temp. (C)</MudTh>
+            <MudTh>Temp. (F)</MudTh>
+            <MudTh>Summary</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Date">@context.Date.ToShortDateString()</MudTd>
+            <MudTd DataLabel="Temp. (C)">@context.TemperatureC</MudTd>
+            <MudTd DataLabel="Temp. (F)">@context.TemperatureF</MudTd>
+            <MudTd DataLabel="Summary">@context.Summary</MudTd>
+        </RowTemplate>
+    </MudTable>
 }
 
 @code {
@@ -64,7 +60,7 @@ else
         }
         catch (Exception ex)
         {
-            error = ex.ToString();
+            error = $"An error occurred while fetching data: {ex.Message}";
         }
     }
 
@@ -74,7 +70,7 @@ else
 
         public int TemperatureC { get; set; }
 
-        public int TemperatureF { get; set; }
+        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 
         public string? Summary { get; set; }
     }

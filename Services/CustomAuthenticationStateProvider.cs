@@ -90,7 +90,7 @@ namespace Frontend.Services
                     return new FormResult { Succeeded = true };
                 }
                 else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    return new FormResult { Succeeded = false, ErrorList = ["Wrong credentials"] };
+                    return new FormResult { Succeeded = false, ErrorList = ["Incorrect credentials"] };
             }
             catch (Exception ex)
             {

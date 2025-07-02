@@ -1,3 +1,4 @@
+using MudBlazor.Services;
 using Frontend.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
@@ -32,6 +33,8 @@ namespace Frontend
             builder.Services.AddCascadingAuthenticationState();
             builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
             builder.Services.AddScoped(sp => (IAccountManagement)sp.GetRequiredService<AuthenticationStateProvider>());
+
+            builder.Services.AddMudServices();
 
             await builder.Build().RunAsync();
         }

@@ -1,28 +1,52 @@
 ﻿@inherits LayoutComponentBase
 @inject IAccountManagement Acct
+@inject ILocalStorageService LS
 
-<div class="page">
-    <main>
-        <AuthorizeView>
-            <Authorized>
-                <div class="top-row px-3 d-flex justify-content-between align-items-center">
-                    <nav class="d-flex align-items-center" style="gap: 0.5rem;">
-                        <NavLink href="/" Match="NavLinkMatch.All" class="btn btn-sm btn-secondary">Home</NavLink>
-                        <NavLink href="counter" class="btn btn-sm btn-secondary">Counter</NavLink>
-                        <NavLink href="fetchdata" class="btn btn-sm btn-secondary">Fetch Data</NavLink>
-                    </nav>
-                    <button @onclick="LogoutAsync" class="btn btn-sm btn-outline-light">Logout</button>
-                </div>
-            </Authorized>
-        </AuthorizeView>
+<MudThemeProvider @bind-IsDarkMode="_isDarkMode" />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-        <article class="content px-4">
+<MudLayout>
+    <AuthorizeView>
+        <Authorized>
+            <MudAppBar Elevation="1">
+                <MudButton Href="/" Variant="Variant.Text" Color="Color.Inherit" Class="ml-2">Home</MudButton>
+                <MudButton Href="/BuildInfo" Variant="Variant.Text" Color="Color.Inherit">Build Info</MudButton>
+                <MudButton Href="/RandomWord" Variant="Variant.Text" Color="Color.Inherit">Random Word</MudButton>
+                <MudButton Href="/Weather" Variant="Variant.Text" Color="Color.Inherit">Weather</MudButton>
+
+                <MudSpacer />
+
+                <MudIconButton Icon="@(_isDarkMode? Icons.Material.Filled.WbSunny : Icons.Material.Filled.Brightness4)" Color="Color.Inherit" OnClick="@ToggleThemeAsync" />
+
+                <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="LogoutAsync" StartIcon="@Icons.Material.Filled.Logout">Logout</MudButton>
+            </MudAppBar>
+        </Authorized>
+    </AuthorizeView>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-6 pt-6">
             @Body
-        </article>
-    </main>
-</div>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
 
 @code {
+    private bool _isDarkMode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var storedTheme = await LS.GetItemAsync<string>("theme");
+        _isDarkMode = storedTheme != "light";
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        _isDarkMode = !_isDarkMode;
+        var newTheme = _isDarkMode ? "dark" : "light";
+        await LS.SetItemAsync<string>("theme", newTheme);
+    }
+
     private async Task LogoutAsync()
     {
         await Acct.LogoutAsync();
