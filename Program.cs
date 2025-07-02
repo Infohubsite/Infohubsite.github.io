@@ -35,11 +35,16 @@ namespace Frontend
                         }
                     ));
                 //.AddHttpMessageHandler<GlobalExceptionHandler>();
-            builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Default"));
             builder.Services.AddHttpClient("OriginClient", client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Frontend"] ?? throw new InvalidOperationException("Frontend origin URL ('Origins:Frontend') is not configured."));
             });
+            builder.Services.AddHttpClient("WakeupClient", client =>
+            {
+                client.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException("Backend origin URL ('Origins:Backend') is not configured."));
+            });
+
+            builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Default"));
 
             builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
 

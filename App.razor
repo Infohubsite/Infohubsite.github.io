@@ -1,4 +1,6 @@
 ﻿@inject IJSRuntime JSR
+@inject IHttpClientFactory HCF
+@inject INotificationService NS
 
 <Router AppAssembly="@typeof(App).Assembly">
     <Found Context="routeData">
@@ -18,6 +20,20 @@
 </Router>
 
 @code {
-    protected override async Task OnInitializedAsync() =>
+    protected override async Task OnInitializedAsync()
+    {
         await JSR.InvokeVoidAsync("removeLoadingStyle");
+
+        try
+        {
+            using HttpClient client = HCF.CreateClient("WakeupClient");
+            using HttpResponseMessage responseMessage = await client.GetAsync("/Healthz");
+            responseMessage.EnsureSuccessStatusCode();
+        }
+        catch (Exception ex)
+        {
+            await NS.Show("Backend health check failed");
+            Console.WriteLine(ex);
+        }
+    }
 }
