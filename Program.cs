@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using MudBlazor.Services;
 using Polly;
+using Polly.Retry;
 
 namespace Frontend
 {
@@ -11,6 +12,7 @@ namespace Frontend
     {
         public static async Task Main(string[] args)
         {
+
             var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
             builder.RootComponents.Add<App>("#app");
@@ -24,16 +26,7 @@ namespace Frontend
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException("Backend origin URL ('Origins:Backend') is not configured."));
             })
                 .AddHttpMessageHandler<AuthenticationHeaderHandler>()
-                .AddPolicyHandler(Policy<HttpResponseMessage>
-                    .Handle<HttpRequestException>(ex => ex.StatusCode == null)
-                    .WaitAndRetryAsync(
-                        3,
-                        retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
-                        onRetry: (outcome, timespan, retryAttempt, context) =>
-                        {
-                            Console.WriteLine($"[Polly] Network error detected. Delaying for {timespan.TotalSeconds}s before retry {retryAttempt}/{3}. Reason: {outcome.Exception.Message}");
-                        }
-                    ));
+                .AddPolicyHandler(GetRetryPolicy());
                 //.AddHttpMessageHandler<GlobalExceptionHandler>();
             builder.Services.AddHttpClient("OriginClient", client =>
             {
@@ -42,7 +35,8 @@ namespace Frontend
             builder.Services.AddHttpClient("WakeupClient", client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException("Backend origin URL ('Origins:Backend') is not configured."));
-            });
+            })
+                .AddPolicyHandler(GetRetryPolicy(2));
 
             builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Default"));
 
@@ -56,6 +50,20 @@ namespace Frontend
             builder.Services.AddMudServices();
 
             await builder.Build().RunAsync();
+        }
+
+        internal static AsyncRetryPolicy<HttpResponseMessage> GetRetryPolicy(int times = 3)
+        {
+            return Policy<HttpResponseMessage>
+                .Handle<HttpRequestException>(ex => ex.StatusCode == null)
+                .WaitAndRetryAsync(
+                    times,
+                    retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                    onRetry: (outcome, timespan, retryAttempt, context) =>
+                    {
+                        Console.WriteLine($"[Polly] Network error detected. Delaying for {timespan.TotalSeconds}s before retry {retryAttempt}/{3}. Reason: {outcome.Exception.Message}");
+                    }
+                );
         }
     }
 }
