@@ -23,7 +23,7 @@
                     <MudHidden Breakpoint="Breakpoint.SmAndDown">
                         @foreach (var link in navLinks)
                         {
-                            <MudButton Href="@link.Href" Variant="Variant.Text" Color="Color.Inherit">@link.Text</MudButton>
+                            <MudButton Href="@link.Href" Variant="Variant.Text" Color="Color.Inherit" Style="margin: 0px 5px 0px 5px;">@link.Text</MudButton>
                         }
                     </MudHidden>
 
@@ -35,14 +35,14 @@
                     }
 
                     <MudIconButton Icon="@(darkMode? Icons.Material.Filled.WbSunny : Icons.Material.Filled.Brightness4)" Color="Color.Inherit" OnClick="ToggleThemeAsync" />
-                    <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="LogoutAsync" StartIcon="@Icons.Material.Filled.Logout">Logout</MudButton>
+                    <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="LogoutAsync" StartIcon="@Icons.Material.Filled.Logout" Style="margin-left: 5px">Logout</MudButton>
                 </MudAppBar>
 
                 <MudDrawer @bind-Open="drawer" Elevation="2" ClipMode="DrawerClipMode.Always" Variant="DrawerVariant.Temporary">
                     <MudNavMenu>
                         @foreach (var link in navLinks)
                         {
-                            <MudNavLink Href="@link.Href" Match="@(link.Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)">@link.Text</MudNavLink>
+                            <MudNavLink Href="@link.Href" Match="@(link.Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)" Style="margin: 0px 5px 0px 5px;">@link.Text</MudNavLink>
                         }
                     </MudNavMenu>
                 </MudDrawer>
