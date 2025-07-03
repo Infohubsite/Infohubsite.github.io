@@ -1,0 +1,11 @@
+﻿@inherits LayoutComponentBase
+@layout MainLayout
+
+<AuthorizeView Roles="admin">
+	<Authorized>
+		@Body
+	</Authorized>
+	<NotAuthorized>
+		<MudText Typo="Typo.h3">You are not authorized to view this page</MudText>
+	</NotAuthorized>
+</AuthorizeView>

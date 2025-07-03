@@ -4,51 +4,102 @@
 @inject ILocalStorageService LS
 @inject INotificationService NS
 @inject ISnackbar Snackbar
+@inject NavigationManager NM
 
-<MudThemeProvider @bind-IsDarkMode="_isDarkMode" />
-<MudDialogProvider />
-<MudSnackbarProvider />
+<CascadingAuthenticationState>
+    <MudThemeProvider @bind-IsDarkMode="darkMode" />
+    <MudDialogProvider />
+    <MudSnackbarProvider />
 
-<MudLayout>
-    <AuthorizeView>
-        <Authorized>
-            <MudAppBar Elevation="1">
-                <MudButton Href="/" Variant="Variant.Text" Color="Color.Inherit" Class="ml-2">Home</MudButton>
-                <MudButton Href="/BuildInfo" Variant="Variant.Text" Color="Color.Inherit">Build Info</MudButton>
-                <MudButton Href="/RandomWord" Variant="Variant.Text" Color="Color.Inherit">Random Word</MudButton>
-                <MudButton Href="/Weather" Variant="Variant.Text" Color="Color.Inherit">Weather</MudButton>
+    <MudLayout>
+        <AuthorizeView>
+            <Authorized>
+                @{
+                    var navLinks = adminActive ? adminNavLinks : userNavLinks;
+                }
+                <MudAppBar Elevation="1">
+                    <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@(() => drawer = !drawer)" Class="d-md-none" />
 
-                <MudSpacer />
+                    <MudHidden Breakpoint="Breakpoint.SmAndDown">
+                        @foreach (var link in navLinks)
+                        {
+                            <MudButton Href="@link.Href" Variant="Variant.Text" Color="Color.Inherit">@link.Text</MudButton>
+                        }
+                    </MudHidden>
 
-                <MudIconButton Icon="@(_isDarkMode? Icons.Material.Filled.WbSunny : Icons.Material.Filled.Brightness4)" Color="Color.Inherit" OnClick="@ToggleThemeAsync" />
+                    <MudSpacer />
 
-                <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="LogoutAsync" StartIcon="@Icons.Material.Filled.Logout">Logout</MudButton>
-            </MudAppBar>
-        </Authorized>
-    </AuthorizeView>
+                    @if (context.User.IsInRole("admin"))
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings" Color="Color.Inherit" OnClick="ToggleAdminMode" />
+                    }
 
-    <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.Large" Class="my-6 pt-6">
-            @Body
-        </MudContainer>
-    </MudMainContent>
-</MudLayout>
+                    <MudIconButton Icon="@(darkMode? Icons.Material.Filled.WbSunny : Icons.Material.Filled.Brightness4)" Color="Color.Inherit" OnClick="ToggleThemeAsync" />
+                    <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="LogoutAsync" StartIcon="@Icons.Material.Filled.Logout">Logout</MudButton>
+                </MudAppBar>
+
+                <MudDrawer @bind-Open="drawer" Elevation="2" ClipMode="DrawerClipMode.Always" Variant="DrawerVariant.Temporary">
+                    <MudNavMenu>
+                        @foreach (var link in navLinks)
+                        {
+                            <MudNavLink Href="@link.Href" Match="@(link.Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)">@link.Text</MudNavLink>
+                        }
+                    </MudNavMenu>
+                </MudDrawer>
+            </Authorized>
+        </AuthorizeView>
+
+        <MudMainContent>
+            <MudContainer MaxWidth="MaxWidth.Large" Class="my-4 pt-4 my-md-6 pt-md-6">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    </MudLayout>
+</CascadingAuthenticationState>
 
 @code {
-    private bool _isDarkMode;
+    private bool darkMode;
+    private bool drawer = false;
+    private bool adminActive = false;
+
+    public record NavLinkInfo(string Href, string Text);
+
+    private readonly List<NavLinkInfo> userNavLinks = new()
+    {
+        new("/", "Home"),
+        new("/BuildInfo", "Build Info"),
+        new("/RandomWord", "Random Word"),
+        new("/RandomWeather", "Random Weather"),
+        new("/Weather", "Weather")
+    };
+
+    private readonly List<NavLinkInfo> adminNavLinks = new()
+    {
+        new("/Admin/Statistics", "Statistics")
+    };
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthenticationStateTask { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
         NS.OnShow += ShowSnackbar;
 
         var storedTheme = await LS.GetItemAsync<string>("theme");
-        _isDarkMode = storedTheme != "light";
+        darkMode = storedTheme != "light";
+    }
+
+    private void ToggleAdminMode()
+    {
+        adminActive = !adminActive;
+        var landingPage = adminActive ? adminNavLinks.First().Href : userNavLinks.First().Href;
+        NM.NavigateTo(landingPage);
     }
 
     private async Task ToggleThemeAsync()
     {
-        _isDarkMode = !_isDarkMode;
-        var newTheme = _isDarkMode ? "dark" : "light";
+        darkMode = !darkMode;
+        var newTheme = darkMode ? "dark" : "light";
         await LS.SetItemAsync<string>("theme", newTheme);
     }
 

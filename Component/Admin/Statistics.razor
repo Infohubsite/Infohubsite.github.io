@@ -1,0 +1,54 @@
+﻿@page "/Admin/Statistics"
+@layout AdminLayout
+@inject HttpClient Http
+@inject NavigationManager NM
+@inject INotificationService NS
+
+<PageTitle>Statistics</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Statistics</MudText>
+
+@if (usageData == null && loading)
+{
+	<MudProgressCircular Color="Color.Primary" Indeterminate="true"/>
+}
+else if (usageData != null)
+{
+	<MudTable Items="usageData" Hover="true" Striped="true">
+		<HeaderContent>
+			<MudTh>Month</MudTh>
+			<MudTh>Request Units (RUs)</MudTh>
+			<MudTh>Average Storage (GiB)</MudTh>
+		</HeaderContent>
+		<RowTemplate>
+			<MudTh DataLabel="Month">@context.Month</MudTh>
+			<MudTh DataLabel="RUs">@context.RuUsage.ToString("N0")</MudTh>
+			<MudTh DataLabel="Storage">@context.StorageGibAvg.ToString("F2")</MudTh>
+		</RowTemplate>
+	</MudTable>
+}
+
+@code {
+	private List<MonthlyUsage>? usageData;
+	private bool loading = true;
+
+	protected override async Task OnInitializedAsync()
+	{
+		try
+		{
+			usageData = await Http.GetFromJsonAsync<List<MonthlyUsage>>("/Admin/Statistics");
+		}
+		catch (UnauthorizedAccessException)
+		{
+			NM.NavigateTo("/");
+		}
+		catch (Exception ex)
+		{
+			await NS.Show(ex.ToString(), Severity.Warning);
+		}
+		finally
+		{
+			loading = false;
+		}
+	}
+}
