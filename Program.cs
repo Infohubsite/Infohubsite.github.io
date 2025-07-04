@@ -2,6 +2,7 @@ using Frontend.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using MudBlazor;
 using MudBlazor.Services;
 using Polly;
 using Polly.Retry;
@@ -18,9 +19,13 @@ namespace Frontend
             builder.RootComponents.Add<App>("#app");
             builder.RootComponents.Add<HeadOutlet>("head::after");
 
-            builder.Services.AddSingleton<INotificationService, NotificationService>();
             builder.Services.AddTransient<GlobalExceptionHandler>();
             builder.Services.AddTransient<AuthenticationHeaderHandler>();
+
+            builder.Services.AddSingleton<INotificationService, NotificationService>();
+            builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
+            builder.Services.AddScoped<IEntityDefinitionService, EntityDefinitionService>();
+
             builder.Services.AddHttpClient("Default", client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException("Backend origin URL ('Origins:Backend') is not configured."));
@@ -40,14 +45,24 @@ namespace Frontend
 
             builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Default"));
 
-            builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
-
             builder.Services.AddAuthorizationCore();
             builder.Services.AddCascadingAuthenticationState();
             builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
             builder.Services.AddScoped(sp => (IAccountManagement)sp.GetRequiredService<AuthenticationStateProvider>());
 
-            builder.Services.AddMudServices();
+            builder.Services.AddMudServices(config =>
+            {
+                config.SnackbarConfiguration = new()
+                {
+                    PositionClass = Defaults.Classes.Position.TopRight,
+                    PreventDuplicates = false,
+                    ShowCloseIcon = true,
+                    VisibleStateDuration = 10000,
+                    HideTransitionDuration = 500,
+                    ShowTransitionDuration = 500,
+                    SnackbarVariant = Variant.Filled
+                };
+            });
 
             await builder.Build().RunAsync();
         }

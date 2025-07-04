@@ -1,5 +1,4 @@
-﻿@page "/login"
-@attribute [AllowAnonymous]
+﻿@attribute [AllowAnonymous]
 @using Microsoft.AspNetCore.Authorization
 @using System.ComponentModel.DataAnnotations
 @inject IAccountManagement Acct
@@ -34,7 +33,7 @@
                     <MudTextField Label="Password" Class="mt-3" @bind-Value="loginModel.Password" For="@(() => loginModel.Password)" InputType="InputType.Password" Required="true" />
                 </MudCardContent>
                 <MudCardActions>
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@loading" Loading="@loading" Class="ml-auto">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" Disabled="@loading" Loading="@loading" Class="ml-auto">
                         Login
                     </MudButton>
                 </MudCardActions>

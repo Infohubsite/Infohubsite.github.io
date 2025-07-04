@@ -25,11 +25,6 @@ namespace Frontend.Services
 
         private readonly HttpClient _httpClient = httpClientFactory.CreateClient("Default");
 
-        private readonly JsonSerializerOptions jsonSerializerOptions = new()
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
-
         private class LoginResponse
         {
             public string Token { get; set; } =string.Empty;
@@ -79,7 +74,7 @@ namespace Frontend.Services
             try
             {
                 response = await this._httpClient.PostAsJsonAsync(
-                    "Auth/Login",
+                    "/Auth/Login",
                     new
                     {
                         Username = username,
@@ -125,7 +120,7 @@ namespace Frontend.Services
         {
             try
             {
-                HttpResponseMessage result = await this._httpClient.GetAsync("Auth/Role");
+                HttpResponseMessage result = await this._httpClient.GetAsync("/Auth/Role");
                 return await result.Content.ReadAsStringAsync();
             }
             catch (Exception ex)

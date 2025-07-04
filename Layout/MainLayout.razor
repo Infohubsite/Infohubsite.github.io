@@ -10,6 +10,7 @@
     <MudThemeProvider @bind-IsDarkMode="darkMode" />
     <MudDialogProvider />
     <MudSnackbarProvider />
+    <MudPopoverProvider />
 
     <MudLayout>
         <AuthorizeView>
@@ -75,6 +76,7 @@
 
     private readonly List<NavLinkInfo> adminNavLinks = new()
     {
+        new("/Admin/Definitions", "Entity Definitions"),
         new("/Admin/Statistics", "Statistics")
     };
 
@@ -108,7 +110,10 @@
 
     private Task ShowSnackbar(string message, Severity severity)
     {
-        Snackbar.Add(message, severity, config => { config.CloseAfterNavigation = true; });
+        Snackbar.Add(message, severity, config =>
+            {
+                config.CloseAfterNavigation = false;
+            });
         return Task.CompletedTask;
     }
 
