@@ -47,10 +47,8 @@ namespace Frontend.Services
                 if (!long.TryParse(expObject.ToString(), out long expValue))
                     throw new UnauthenticatedException();
 
-#if RELEASE
                 if (DateTimeOffset.FromUnixTimeSeconds(expValue) <= DateTimeOffset.UtcNow)
                     throw new UnauthenticatedException();
-#endif
 
                 _authenticated = true;
                 return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(dict), "jwt")));

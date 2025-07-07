@@ -1,0 +1,40 @@
+﻿<MudDialog>
+	<DialogContent>
+		@if (error && ErrorMessage != null)
+		{
+			<MudAlert Severity="Severity.Error">@ErrorMessage</MudAlert>
+		}
+		@Content
+	</DialogContent>
+	<DialogActions>
+		<MudButton OnClick="Cancel">Cancel</MudButton>
+		<MudButton OnClick="Submit" StartIcon="@ButtonStartIcon" Color="ButtonColor" Variant="Variant.Filled">@ButtonText</MudButton>
+	</DialogActions>
+</MudDialog>
+
+@code
+{
+	[CascadingParameter]
+	IMudDialogInstance MudDialog { get; set; } = default!;
+
+	[Parameter] public RenderFragment Content { get; set; } = default!;
+	[Parameter] public string ButtonText { get; set; } = string.Empty;
+	[Parameter] public Color ButtonColor { get; set; } = Color.Primary;
+	[Parameter] public string ButtonStartIcon { get; set; } = string.Empty;
+	[Parameter] public Func<Task<bool>>? OnSubmit { get; set; }
+	[Parameter] public string? ErrorMessage { get; set; }
+
+	private bool error;
+
+	private async Task Submit()
+	{
+		error = false;
+		if (OnSubmit == null)
+			MudDialog.Close(DialogResult.Ok(false));
+		else if (await OnSubmit())
+			MudDialog.Close(DialogResult.Ok(true));
+		else
+			error = true;
+	}
+	private void Cancel() => MudDialog.Cancel();
+}

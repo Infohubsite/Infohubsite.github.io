@@ -1,5 +1,4 @@
 ﻿@page "/Admin/Definitions"
-@layout AdminLayout
 @inject IEntityDefinitionService EDS
 @inject INotificationService NS
 @inject IDialogService DS
@@ -7,25 +6,22 @@
 <PageTitle>Entity Definitions</PageTitle>
 
 <MudText Typo="Typo.h3" GutterBottom="true">Entity Definitions</MudText>
-<MudText Class="mb-4">Manage the core data blueprints for the app</MudText>
 
-@if (entityDefinitions == null)
+@if (error)
 {
-    @if (error)
-    {
-        <MudAlert Severity="Severity.Error">Failed to load entity definitions</MudAlert>
-    }
-    else
-    {
-        <MudProgressCircular Color="Color.Default" Indeterminate="true" />
-    }
+    <MudAlert Severity="Severity.Error">Failed to get entity definitions</MudAlert>
 }
-else
+@if (loading && !error)
+{
+    <MudProgressCircular Color="Color.Default" Indeterminate="true" />
+}
+else if (entityDefinitions != null)
 {
     <MudTable Items="entityDefinitions" Striped="true" Bordered="true" Dense="true">
         <ToolBarContent>
+            <MudIconButton OnClick="Load" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
             <MudSpacer />
-            <MudButton OnClick="OpenCreateDialog" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Create Entity</MudButton>
+            <MudButton OnClick="() => OpenEntityDialog()" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Create Entity</MudButton>
         </ToolBarContent>
         <HeaderContent>
             <MudTh>Name</MudTh>
@@ -43,8 +39,8 @@ else
                 </MudStack>
             </MudTd>
             <MudTd DataLabel="Actions">
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
+                <MudIconButton OnClick="() => OpenEntityDialog(context)" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
+                <MudIconButton OnClick="() => OpenDeleteDialog(context)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
             </MudTd>
         </RowTemplate>
         <PagerContent>
@@ -55,20 +51,29 @@ else
 
 @code {
     private List<EntityDefinitionDto>? entityDefinitions;
-    private bool error;
+    private bool error, loading = true;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
     {
-        entityDefinitions = await EDS.GetEntityDefinitionsAsync();
-        if (entityDefinitions == null)
+        error = false;
+        loading = true;
+        List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync();
+        if (entities == null)
             error = true;
+        else
+            entityDefinitions = entities;
+        loading = false;
     }
 
-    private async Task OpenCreateDialog()
+    private async Task OpenEntityDialog(EntityDefinitionDto? context = null)
     {
-        DialogParameters<CreateEntityDialog> parameters = new()
+        DialogParameters<EntityDialog> parameters = new()
         {
-            { x => x.AllEntityDefinitions, entityDefinitions ?? new() }
+            { x => x.AllEntityDefinitions, entityDefinitions ?? new() },
+            { x => x.CurrentEntity, context },
+            { x => x.ButtonText, context == null ? "Create" : "Edit" }
         };
         DialogOptions options = new()
         {
@@ -77,15 +82,62 @@ else
             BackdropClick = false
         };
 
-        IDialogReference dialog = await DS.ShowAsync<CreateEntityDialog>("Create New Entity", parameters, options);
+        IDialogReference dialog = await DS.ShowAsync<EntityDialog>(context == null ? "Create New Entity Definition" : "Edit Entity Definition", parameters, options);
         DialogResult? result = await dialog.Result;
         if (result == null || result.Canceled)
             return;
 
-        EntityDefinitionDto? newEntity = result.Data as EntityDefinitionDto;
-        if (newEntity == null)
+        if (context == null)
+        {
+            EntityDefinitionDto? newEntity = result.Data as EntityDefinitionDto;
+            if (newEntity == null)
+                return;
+
+            entityDefinitions?.Add(newEntity);
+        }
+        else
+        {
+            string? newName = result.Data as string;
+            if (newName == null)
+                return;
+
+            context.Name = newName;
+        }
+    }
+    private async Task OpenDeleteDialog(EntityDefinitionDto context)
+    {
+        DialogParameters<ConfirmationDialog> parameters = new()
+        {
+            { 
+                x => x.Content, 
+                @<MudText>
+                    Are you sure you want to delete the '@context.Name' entity?
+                    <br />
+                    <strong>This action cannot be undone</strong>
+                </MudText>
+            },
+            { x => x.ButtonText, "Delete" },
+            { x => x.ButtonColor, Color.Error },
+            { x => x.ButtonStartIcon, Icons.Material.Filled.DeleteForever },
+            { x => x.OnSubmit, async () => await EDS.DeleteEntityAsync(context.Id) },
+            { x => x.ErrorMessage, "Failed to delete the entity definition. Maybe it is in use?"}
+        };
+        DialogOptions options = new()
+            {
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true,
+                BackdropClick = false
+            };
+
+        IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Confirm Deletion", parameters, options);
+        DialogResult? result = await dialog.Result;
+        if (result == null || result.Canceled)
             return;
 
-        entityDefinitions?.Add(newEntity);
+        if (result.Data is bool && (bool)result.Data)
+        {
+            this.entityDefinitions?.Remove(context);
+            await NS.Show($"Successfully deleted the '{context.Name}' entity", Severity.Success);
+        }
     }
 }
