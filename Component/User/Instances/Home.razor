@@ -1,32 +1,37 @@
-﻿@page "/Admin/Definitions"
-@inject INotificationService NS
-@inject IDialogService DS
+﻿@page "/"
 @inject IEntityDefinitionService EDS
+@inject IDialogService DS
+@inject INotificationService NS
+@inject NavigationManager NM
 
 <PageTitle>Entity Definitions</PageTitle>
 
-<MudText Typo="Typo.h3" GutterBottom="true">Entity Definitions</MudText>
+<MudText Typo="Typo.h6">Entity Definitions</MudText>
 
-@if (error)
+@if (error != null)
 {
-    <MudAlert Severity="Severity.Error">Failed to get entity definitions</MudAlert>
+    <MudAlert Severity="Severity.Error">@error</MudAlert>
 }
-@if (loading && !error)
+@if (loading && error == null)
 {
     <MudProgressCircular Color="Color.Default" Indeterminate="true" />
 }
 else if (entityDefinitions != null)
 {
-    <MudTable Items="entityDefinitions" Striped="true" Bordered="true" Dense="true">
+    <MudTable Items="entityDefinitions" Hover="true" Bordered="true" Dense="true" OnRowClick="(TableRowClickEventArgs<EntityDefinitionDto> args) => OpenInstance(args)">
         <ToolBarContent>
-            <MudIconButton OnClick="Load" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
-            <MudSpacer />
-            <MudButton OnClick="() => OpenEntityDialog()" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Create Entity</MudButton>
+            <MudIconButton OnClick="() => Load(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
+            <AuthorizeView Roles="admin">
+                <MudSpacer />
+                <MudButton OnClick="() => OpenEntityDialog()" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Create Entity</MudButton>
+            </AuthorizeView>
         </ToolBarContent>
         <HeaderContent>
             <MudTh>Name</MudTh>
             <MudTh>Fields</MudTh>
-            <MudTh>Actions</MudTh>
+            <AuthorizeView Roles="admin">
+                <MudTh>Actions</MudTh>
+            </AuthorizeView>
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Name">@context.Name</MudTd>
@@ -38,35 +43,44 @@ else if (entityDefinitions != null)
                     }
                 </MudStack>
             </MudTd>
-            <MudTd DataLabel="Actions">
-                <MudIconButton OnClick="() => OpenEntityDialog(context)" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
-                <MudIconButton OnClick="() => OpenDeleteDialog(context)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
-            </MudTd>
+            <AuthorizeView Roles="admin" Context="_">
+                <MudTd DataLabel="Actions">
+                    <MudIconButton OnClick="() => OpenEntityDialog(context)" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
+                    <MudIconButton OnClick="() => OpenDeleteDialog(context)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
+                </MudTd>
+            </AuthorizeView>
         </RowTemplate>
-        <PagerContent>
-            <MudTablePager />
-        </PagerContent>
     </MudTable>
 }
 
 @code {
     private List<EntityDefinitionDto>? entityDefinitions;
-    private bool error, loading = true;
+    private string? error;
+    private bool loading;
 
     protected override async Task OnInitializedAsync() => await Load();
 
-    private async Task Load()
+    private async Task Load(bool refresh = false)
     {
-        error = false;
+        error = null;
         loading = true;
-        List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync(true);
+        List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync(refresh);
         if (entities == null)
-            error = true;
+            error = "Failed to get entity definitions";
         else
             entityDefinitions = entities;
         loading = false;
     }
 
+    private void OpenInstance(TableRowClickEventArgs<EntityDefinitionDto> args)
+    {
+        if (args.Item == null)
+            return;
+
+        NM.NavigateTo($"/Instances/{args.Item.Id}");
+    }
+
+    // ADMIN //
     private async Task OpenEntityDialog(EntityDefinitionDto? context = null)
     {
         DialogParameters<EntityDialog> parameters = new()
@@ -106,10 +120,16 @@ else if (entityDefinitions != null)
     }
     private async Task OpenDeleteDialog(EntityDefinitionDto context)
     {
+        DialogOptions options = new()
+        {
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            BackdropClick = false
+        };
         DialogParameters<ConfirmationDialog> parameters = new()
         {
-            { 
-                x => x.Content, 
+            {
+                x => x.Content,
                 @<MudText>
                     Are you sure you want to delete the '@context.Name' entity?
                     <br />
@@ -122,12 +142,6 @@ else if (entityDefinitions != null)
             { x => x.OnSubmit, async () => await EDS.DeleteEntityAsync(context.Id) },
             { x => x.ErrorMessage, "Failed to delete the entity definition. Maybe it is in use?"}
         };
-        DialogOptions options = new()
-            {
-                MaxWidth = MaxWidth.Small,
-                FullWidth = true,
-                BackdropClick = false
-            };
 
         IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Confirm Deletion", parameters, options);
         DialogResult? result = await dialog.Result;

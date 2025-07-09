@@ -2,7 +2,7 @@
 	<DialogContent>
 		@if (error && ErrorMessage != null)
 		{
-			<MudAlert Severity="Severity.Error">@ErrorMessage</MudAlert>
+			<MudAlert Severity="Severity.Error" Style="margin: 0px 0px 15px 0px;">@ErrorMessage</MudAlert>
 		}
 		@Content
 	</DialogContent>

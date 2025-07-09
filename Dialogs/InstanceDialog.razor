@@ -1,0 +1,169 @@
+﻿@using Frontend.Models.DTOs
+@using Frontend.Models.Enums
+@using System.Text.Json
+@inject IEntityDefinitionService EDS
+@inject IEntityInstanceService EIS
+@inject INotificationService NS
+
+<MudDialog>
+    <DialogContent>
+        @if (EntityDefinition == null)
+        {
+            <MudProgressCircular Indeterminate="true" />
+        }
+        else
+        {
+            @if (error != null)
+            {
+                <MudAlert Severity="Severity.Error" Class="my-2">@error</MudAlert>
+            }
+
+            <MudForm @ref="form" @bind-IsValid="valid" Class="mt-4">
+                @foreach (var field in EntityDefinition.Fields)
+                {
+                    @switch (field.DataType)
+                    {
+                        case DataType.Text:
+                            <MudTextField T="string"
+                                          Label="@field.Name"
+                                          Required="true"
+                                          RequiredError="@($"{field.Name} is required.")"
+                                          ValueChanged="@((string val) => model.Data[field.Name] = val)" />
+                            break;
+                        case DataType.Number:
+                            <MudNumericField T="double?"
+                                             Label="@field.Name"
+                                             Required="true"
+                                             RequiredError="@($"{field.Name} is required.")"
+                                             ValueChanged="@((double? val) => model.Data[field.Name] = val)" />
+                            break;
+                        case DataType.Date:
+                            <MudDatePicker Label="@field.Name"
+                                           Required="true"
+                                           RequiredError="@($"{field.Name} is required.")"
+                                           DateChanged="@((DateTime? val) => model.Data[field.Name] = val)" />
+                            break;
+                        case DataType.Boolean:
+                            <MudSwitch T="bool"
+                                       Label="@field.Name"
+                                       Color="Color.Primary"
+                                       ValueChanged="@((bool val) => model.Data[field.Name] = val)" />
+                            break;
+                        case DataType.EntityReference:
+                            <MudAutocomplete T="Guid?"
+                                             Label="@field.Name"
+                                             Required="true"
+                                             RequiredError="@($"{field.Name} is required.")"
+                                             SearchFunc="@((searchTerm, token) => SearchInstances(field.ReferenceTargetEntityDefinitionId, searchTerm))"
+                                             ValueChanged="@((Guid? val) => model.Data[field.Name] = val)"
+                                             ToStringFunc="@(id => GetInstanceNameById(field.ReferenceTargetEntityDefinitionId, id))" />
+                            break;
+                    }
+                }
+            </MudForm>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(!valid)">@ButtonText</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid EntityDefinitionId { get; set; }
+    [Parameter] public Guid? CurrentInstance { get; set; }
+    [Parameter] public string ButtonText { get; set; } = string.Empty;
+
+    private EntityDefinitionDto? EntityDefinition;
+    private MudForm form = default!;
+    private CreateInstanceDto model = new();
+    private string? error;
+    private bool valid;
+
+    // Local cache to hold instances for dropdowns, allowing ToStringFunc to be synchronous.
+    private readonly Dictionary<Guid, List<EntityInstanceDto>> _instanceCache = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        EntityDefinition = await EDS.GetEntityDefinitionAsync(EntityDefinitionId);
+        if (EntityDefinition == null)
+        {
+            error = "Could not load the entity definition. Cannot create instance.";
+        }
+    }
+
+    private async Task<IEnumerable<Guid?>> SearchInstances(Guid? targetDefId, string searchTerm)
+    {
+        if (targetDefId == null)
+            return Enumerable.Empty<Guid?>();
+
+        // Step 1: Populate our local cache for this entity type if it's not already populated.
+        if (!_instanceCache.ContainsKey(targetDefId.Value))
+        {
+            var instances = await EIS.GetInstancesAsync(targetDefId.Value);
+            _instanceCache[targetDefId.Value] = instances ?? new List<EntityInstanceDto>();
+        }
+
+        var cachedInstances = _instanceCache[targetDefId.Value];
+
+        // Step 2: Perform the search on the now-cached data.
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return cachedInstances.Select(i => (Guid?)i.Id);
+
+        return cachedInstances
+            .Where(i => GetInstanceDisplayName(i).Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            .Select(i => (Guid?)i.Id);
+    }
+
+    // This function is now SYNCHRONOUS and uses the local _instanceCache.
+    private string GetInstanceNameById(Guid? entityDefId, Guid? instanceId)
+    {
+        if (instanceId == null || entityDefId == null)
+            return "";
+
+        // Read directly from the local component cache.
+        if (!_instanceCache.TryGetValue(entityDefId.Value, out var instances))
+        {
+            // This can happen if a value is pre-selected before a search is done.
+            // Returning the ID is a safe fallback.
+            return instanceId.Value.ToString();
+        }
+
+        var instance = instances.FirstOrDefault(i => i.Id == instanceId.Value);
+
+        return instance != null ? GetInstanceDisplayName(instance) : instanceId.Value.ToString();
+    }
+
+    private string GetInstanceDisplayName(EntityInstanceDto instance)
+    {
+        if (instance?.Data == null) return instance?.Id.ToString() ?? "";
+
+        var nameKey = instance.Data.Keys.FirstOrDefault(k => k.Contains("Name", StringComparison.OrdinalIgnoreCase)) ?? instance.Data.Keys.FirstOrDefault();
+
+        if (nameKey != null && instance.Data.TryGetValue(nameKey, out var value) && value is JsonElement json)
+            return json.ToString();
+
+        return instance.Id.ToString();
+    }
+
+    private async Task Submit()
+    {
+        await form.Validate();
+        if (!valid) return;
+
+        var (instance, statusCode) = await EIS.CreateInstanceAsync(EntityDefinitionId, model);
+
+        if (instance != null)
+        {
+            MudDialog.Close(DialogResult.Ok(instance));
+        }
+        else
+        {
+            error = $"Failed to create instance. The server responded with status: {statusCode}.";
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

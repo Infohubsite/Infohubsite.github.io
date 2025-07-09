@@ -67,17 +67,15 @@
 
     private readonly List<NavLinkInfo> userNavLinks = new()
     {
-        new("/", "Home"),
+        new("/", "Instances"),
         new("/BuildInfo", "Build Info"),
-        new("/RandomWord", "Random Word"),
-        new("/RandomWeather", "Random Weather"),
-        new("/Weather", "Weather")
+        new("/Home", "Home")
     };
 
     private readonly List<NavLinkInfo> adminNavLinks = new()
     {
-        new("/Admin/Control", "Control"),
-        new("/Admin/Definitions", "Entity Definitions")
+        new("/Admin/Control", "Control")
+        //new("/Admin/Definitions", "Entity Definitions")
     };
 
     [CascadingParameter]

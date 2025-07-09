@@ -6,6 +6,7 @@ using MudBlazor;
 using MudBlazor.Services;
 using Polly;
 using Polly.Retry;
+using System.Net; // Required for HttpStatusCode
 
 namespace Frontend
 {
@@ -21,10 +22,14 @@ namespace Frontend
 
             builder.Services.AddTransient<GlobalExceptionHandler>();
             builder.Services.AddTransient<AuthenticationHeaderHandler>();
+            builder.Services.AddScoped<EntityDefinitionService>();
+            builder.Services.AddScoped<EntityInstanceService>();
 
+            builder.Services.AddSingleton<ICacheService, CacheService>();
             builder.Services.AddSingleton<INotificationService, NotificationService>();
             builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
-            builder.Services.AddScoped<IEntityDefinitionService, EntityDefinitionService>();
+            builder.Services.AddScoped<IEntityDefinitionService, CacheEntityDefinitionService>(provider => new CacheEntityDefinitionService(provider.GetRequiredService<EntityDefinitionService>(), provider.GetRequiredService<ICacheService>()));
+            builder.Services.AddScoped<IEntityInstanceService, CacheEntityInstanceService>(provider => new CacheEntityInstanceService(provider.GetRequiredService<EntityInstanceService>(), provider.GetRequiredService<ICacheService>()));
 
             builder.Services.AddHttpClient("Default", client =>
             {
@@ -70,13 +75,15 @@ namespace Frontend
         internal static AsyncRetryPolicy<HttpResponseMessage> GetRetryPolicy(int times = 3)
         {
             return Policy<HttpResponseMessage>
-                .Handle<HttpRequestException>(ex => ex.StatusCode == null)
+                .Handle<HttpRequestException>(ex =>
+                    ex.StatusCode == null || ex.StatusCode >= HttpStatusCode.InternalServerError
+                )
                 .WaitAndRetryAsync(
                     times,
                     retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
                     onRetry: (outcome, timespan, retryAttempt, context) =>
                     {
-                        Console.WriteLine($"[Polly] Network error detected. Delaying for {timespan.TotalSeconds}s before retry {retryAttempt}/{3}. Reason: {outcome.Exception.Message}");
+                        Console.WriteLine($"[Polly] Network error detected. Delaying for {timespan.TotalSeconds}s before retry {retryAttempt}/{times}. Reason: {outcome.Exception.Message}");
                     }
                 );
         }
