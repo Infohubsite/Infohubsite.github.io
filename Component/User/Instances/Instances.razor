@@ -29,7 +29,7 @@ else
 }
 else if (entityInstances != null && !locked)
 {
-    <MudTable Items="entityInstances" Bordered="true" Dense="true" Breakpoint="Breakpoint.None">
+    <MudTable Items="entityInstances" Bordered="true" Breakpoint="Breakpoint.None">
         <ToolBarContent>
             <MudIconButton OnClick="@(() => NM.NavigateTo("/"))" Icon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Secondary" Style="margin: 0px 10px 0px 0px;"/>
             <MudIconButton OnClick="() => Load(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />

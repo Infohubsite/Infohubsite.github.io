@@ -18,7 +18,7 @@
 }
 else if (entityDefinitions != null)
 {
-    <MudTable Items="entityDefinitions" Hover="true" Bordered="true" Dense="true" OnRowClick="(TableRowClickEventArgs<EntityDefinitionDto> args) => OpenInstance(args)" Breakpoint="Breakpoint.None">
+    <MudTable Items="entityDefinitions" Hover="true" Bordered="true" OnRowClick="(TableRowClickEventArgs<EntityDefinitionDto> args) => OpenInstance(args)" Breakpoint="Breakpoint.None">
         <ToolBarContent>
             <MudIconButton OnClick="() => Load(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
             <AuthorizeView Roles="admin">
