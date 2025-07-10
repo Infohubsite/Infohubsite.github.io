@@ -24,7 +24,7 @@
                         {
                             <span style="color: red;">*</span>
                         }
-                        (@field.DataType)
+                        (@(field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType))
                     </MudText>
                     <MudSpacer />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Variant="Variant.Outlined" OnClick="() => RemoveField(field)" Disabled="editing"/> @*remove disabling when editing fields is implemented*@
@@ -96,6 +96,7 @@
             {
                 Name = x.Name,
                 DataType = x.DataType,
+                IsRequired = x.IsRequired,
                 ReferenceTargetEntityDefinitionId = x.ReferenceTargetEntityDefinitionId
             });
         }
@@ -118,6 +119,13 @@
     }
 
     private void RemoveField(CreateFieldDefinitionDto field) => model.Fields.Remove(field);
+    
+    private string GetEntityNameById(Guid? entityId)
+    {
+        if (entityId == null)
+            return "N/A";
+        return AllEntityDefinitions.FirstOrDefault(e => e.Id == entityId)?.Name ?? "Unknown";
+    }
 
     private async Task Submit()
     {
