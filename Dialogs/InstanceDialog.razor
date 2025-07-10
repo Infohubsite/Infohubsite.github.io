@@ -26,37 +26,51 @@
                         case DataType.Text:
                             <MudTextField T="string"
                                           Label="@field.Name"
-                                          Required="true"
+                                          Required="field.IsRequired"
                                           RequiredError="@($"{field.Name} is required.")"
-                                          ValueChanged="@((string val) => model.Data[field.Name] = val)" />
+                                          ValueChanged="@((string val) => OnValueChanged(field.Name, val))" />
                             break;
                         case DataType.Number:
                             <MudNumericField T="double?"
                                              Label="@field.Name"
-                                             Required="true"
+                                             Required="field.IsRequired"
                                              RequiredError="@($"{field.Name} is required.")"
-                                             ValueChanged="@((double? val) => model.Data[field.Name] = val)" />
+                                             ValueChanged="@((double? val) => OnValueChanged(field.Name, val))" />
                             break;
                         case DataType.Date:
                             <MudDatePicker Label="@field.Name"
-                                           Required="true"
+                                           Required="field.IsRequired"
                                            RequiredError="@($"{field.Name} is required.")"
-                                           DateChanged="@((DateTime? val) => model.Data[field.Name] = val)" />
+                                           DateChanged="@((DateTime? val) => OnValueChanged(field.Name, val))"
+                                           Clearable="!field.IsRequired" />
                             break;
                         case DataType.Boolean:
-                            <MudSwitch T="bool"
-                                       Label="@field.Name"
-                                       Color="Color.Primary"
-                                       ValueChanged="@((bool val) => model.Data[field.Name] = val)" />
+                            @if (field.IsRequired)
+                            {
+                                <MudSwitch T="bool"
+                                           Label="@field.Name"
+                                           Color="Color.Primary"
+                                           Checked="@GetBoolValue(field.Name)"
+                                           CheckedChanged="@((bool val) => OnValueChanged(field.Name, val))" />
+                            }
+                            else
+                            {
+                                <MudSelect T="bool?" Label="@field.Name" ValueChanged="@((bool? val) => OnValueChanged(field.Name, val))">
+                                    <MudSelectItem Value="(bool?)null">Not set</MudSelectItem>
+                                    <MudSelectItem Value="(bool?)true">True</MudSelectItem>
+                                    <MudSelectItem Value="(bool?)false">False</MudSelectItem>
+                                </MudSelect>
+                            }
                             break;
                         case DataType.EntityReference:
                             <MudAutocomplete T="Guid?"
                                              Label="@field.Name"
-                                             Required="true"
+                                             Required="field.IsRequired"
                                              RequiredError="@($"{field.Name} is required.")"
                                              SearchFunc="@((searchTerm, token) => SearchInstances(field.ReferenceTargetEntityDefinitionId, searchTerm))"
-                                             ValueChanged="@((Guid? val) => model.Data[field.Name] = val)"
-                                             ToStringFunc="@(id => GetInstanceNameById(field.ReferenceTargetEntityDefinitionId, id))" />
+                                             ValueChanged="@((Guid? val) => OnValueChanged(field.Name, val))"
+                                             ToStringFunc="@(id => GetInstanceNameById(field.ReferenceTargetEntityDefinitionId, id))"
+                                             Clearable="!field.IsRequired" />
                             break;
                     }
                 }
@@ -82,7 +96,6 @@
     private string? error;
     private bool valid;
 
-    // Local cache to hold instances for dropdowns, allowing ToStringFunc to be synchronous.
     private readonly Dictionary<Guid, List<EntityInstanceDto>> _instanceCache = new();
 
     protected override async Task OnInitializedAsync()
@@ -94,19 +107,19 @@
         }
         else
         {
-            // Fix: Initialize model with default values for all fields.
-            // This ensures every field, including the boolean switch, has a value from the start.
             foreach (var field in EntityDefinition.Fields)
             {
-                // Set a default value based on the data type.
-                model.Data[field.Name] = field.DataType switch
+                if (field.IsRequired)
                 {
-                    DataType.Boolean => false,
-                    DataType.Number => (double?)null,
-                    DataType.Date => (DateTime?)null,
-                    DataType.EntityReference => (Guid?)null,
-                    _ => string.Empty,
-                };
+                    model.Data[field.Name] = field.DataType switch
+                    {
+                        DataType.Boolean => false,
+                        DataType.Number => (double?)null,
+                        DataType.Date => (DateTime?)null,
+                        DataType.EntityReference => (Guid?)null,
+                        _ => string.Empty,
+                    };
+                }
             }
         }
     }
@@ -165,22 +178,55 @@
         return instance.Id.ToString();
     }
 
+    private bool GetBoolValue(string fieldName)
+    {
+        if (model.Data.TryGetValue(fieldName, out object? value) && value is bool boolValue)
+            return boolValue;
+        return false;
+    }
+
+    private void OnValueChanged(string fieldName, object? value)
+    {
+        // Check if the value is null or an empty string for text fields
+        bool isNullOrEmpty = value == null || (value is string s && string.IsNullOrEmpty(s));
+
+        if (isNullOrEmpty)
+        {
+            // If the value is cleared, remove the key from the dictionary
+            model.Data.Remove(fieldName);
+        }
+        else
+        {
+            // Otherwise, add or update the value
+            model.Data[fieldName] = value;
+        }
+    }
+
     private async Task Submit()
     {
         await form.Validate();
         if (!valid) return;
 
-        var (instance, statusCode) = await EIS.CreateInstanceAsync(EntityDefinitionId, model);
+        foreach (string? key in model.Data.Where(kvp => kvp.Value == null).Select(kvp => kvp.Key).ToList())
+            model.Data.Remove(key);
+
+        var (instance, response) = await EIS.CreateInstanceAsync(EntityDefinitionId, model);
 
         if (instance != null)
-        {
             MudDialog.Close(DialogResult.Ok(instance));
-        }
+
+        if (response == null)
+            error = $"Failed to create instance. Did not receive a response from the server";
+        else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            error = $"Failed to create insatnce. {(await response.Content.ReadFromJsonAsync<Rsp>())?.message}";
         else
-        {
-            error = $"Failed to create instance. The server responded with status: {statusCode}.";
-        }
+            error = $"Failed to create instance. The server responded with status: {response.StatusCode}.";
     }
 
     private void Cancel() => MudDialog.Cancel();
+
+    private class Rsp
+    {
+        public string message { get; set; } = string.Empty;
+    }
 }

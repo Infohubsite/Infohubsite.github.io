@@ -35,11 +35,13 @@ else if (entityDefinitions != null)
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Fields">
-                <MudStack Row="true">
-                    @foreach (FieldDefinitionDto field in context.Fields)
+            <MudTd DataLabel="Fields" Style="max-width: 400px;">
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    @foreach (var field in context.Fields.Take(6))
                     {
-                        <MudText><strong>@field.Name</strong> (@field.DataType)</MudText>
+                        <MudText>
+                            <strong>@field.Name</strong> (@field.DataType)
+                        </MudText>
                     }
                 </MudStack>
             </MudTd>

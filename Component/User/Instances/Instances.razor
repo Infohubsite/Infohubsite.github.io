@@ -8,13 +8,13 @@
 @if (entityName == null)
 {
     <PageTitle>Instances</PageTitle>
+    <MudText Typo="Typo.h6">Instances</MudText>
 }
 else
 {
     <PageTitle>Instances of @entityName</PageTitle>
+    <MudText Typo="Typo.h6">Instances of @entityName</MudText>
 }
-
-<MudText Typo="Typo.h6">Entity Definitions</MudText>
 
 @if (errors.Count() > 0)
 {
@@ -42,10 +42,13 @@ else if (entityInstances != null && !locked)
         </HeaderContent>
         <RowTemplate>
             <MudTd DataLabel="Fields">
-                <MudStack Row="true">
+                <MudStack Row="true" Spacing="3">
                     @foreach (KeyValuePair<string, object> field in context.Data)
                     {
-                        <MudText><strong>@field.Key</strong>: @field.Value</MudText>
+                        <MudText>
+                            <strong>@field.Key</strong>:
+                            <FieldValueDisplay Value="@field.Value" />
+                        </MudText>
                     }
                 </MudStack>
             </MudTd>
@@ -86,6 +89,8 @@ else if (entityInstances != null && !locked)
             locked = true;
             errors.Add("Failed to get entity definition");
         }
+        else
+            entityName = entityDefinition.Name;
     }
 
     private async Task Load(bool refresh = false)
@@ -151,8 +156,8 @@ else if (entityInstances != null && !locked)
                 x => x.OnSubmit,
                 async () =>
                 {
-                    (bool Success, System.Net.HttpStatusCode? StatusCode) result = await EIS.DeleteInstanceAsync(context.Id);
-                    if (result.StatusCode != System.Net.HttpStatusCode.Conflict)
+                    (bool Success, HttpResponseMessage? Response) result = await EIS.DeleteInstanceAsync(context.Id);
+                    if (result.Response?.StatusCode != System.Net.HttpStatusCode.Conflict)
                         return result.Success;
 
                     DialogParameters<ConfirmationDialog> innerParameters = new()

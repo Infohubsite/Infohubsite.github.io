@@ -13,6 +13,9 @@ namespace Frontend.Models.DTOs
         [JsonPropertyName("dataType")]
         public Enums.DataType DataType { get; set; }
 
+        [JsonPropertyName("isRequired")]
+        public bool IsRequired { get; set; }
+
         [JsonPropertyName("referenceTargetEntityDefinitionId")]
         public Guid? ReferenceTargetEntityDefinitionId { get; set; }
     }

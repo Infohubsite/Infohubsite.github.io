@@ -1,0 +1,74 @@
+﻿@switch (mode)
+{
+    case DisplayMode.Guid:
+        <GuidRenderer InstanceId="@guidr" CurrentDepth="@Depth" />
+        break;
+
+    case DisplayMode.DateTime:
+    case DisplayMode.PlainText:
+        @textr
+        break;
+
+    case DisplayMode.NotSet:
+        <i>(not set)</i>
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public object? Value { get; set; }
+    [Parameter] public int Depth { get; set; } = 0;
+
+    private enum DisplayMode { NotSet, PlainText, DateTime, Guid }
+    private DisplayMode mode;
+
+    private string? textr;
+    private Guid guidr;
+
+    protected override void OnParametersSet()
+    {
+        if (Value is System.Text.Json.JsonElement je)
+        {
+            switch (je.ValueKind)
+            {
+                case System.Text.Json.JsonValueKind.String:
+                    string? stringValue = je.GetString();
+                    if (Guid.TryParse(stringValue, out var guid))
+                    {
+                        mode = DisplayMode.Guid;
+                        guidr = guid;
+                    }
+                    else if (DateTime.TryParse(stringValue, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var dt))
+                    {
+                        mode = DisplayMode.DateTime;
+                        textr = dt.ToShortDateString();
+                    }
+                    else
+                    {
+                        mode = DisplayMode.PlainText;
+                        textr = stringValue;
+                    }
+                    break;
+                case System.Text.Json.JsonValueKind.Number:
+                case System.Text.Json.JsonValueKind.True:
+                case System.Text.Json.JsonValueKind.False:
+                    mode = DisplayMode.PlainText;
+                    textr = je.GetRawText();
+                    break;
+                case System.Text.Json.JsonValueKind.Null:
+                    mode = DisplayMode.NotSet;
+                    break;
+                default:
+                    mode = DisplayMode.PlainText;
+                    textr = je.ToString();
+                    break;
+            }
+        }
+        else if (Value is null)
+            mode = DisplayMode.NotSet;
+        else
+        {
+            mode = DisplayMode.PlainText;
+            textr = Value.ToString();
+        }
+    }
+}

@@ -1,7 +1,7 @@
 ﻿using Frontend.Models.DTOs;
 using Microsoft.AspNetCore.WebUtilities;
-using System.Collections.Specialized;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
 
 namespace Frontend.Services
@@ -9,8 +9,9 @@ namespace Frontend.Services
     public interface IEntityInstanceService
     {
         Task<List<EntityInstanceDto>?> GetInstancesAsync(Guid entityId, bool refresh = false);
-        Task<(bool Success, HttpStatusCode? StatusCode)> DeleteInstanceAsync(Guid instanceId, bool force = false);
-        Task<(EntityInstanceDto? Instance, HttpStatusCode? StatusCode)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance);
+        Task<EntityInstanceDto?> GetInstanceAsync(Guid instanceId, bool refresh = false);
+        Task<(bool Success, HttpResponseMessage? Response)> DeleteInstanceAsync(Guid instanceId, bool force = false);
+        Task<(EntityInstanceDto? Instance, HttpResponseMessage? Response)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance);
     }
 
     public class EntityInstanceService(IHttpClientFactory httpClientFactory, ILogger<EntityInstanceService> logger, INotificationService notifs) : IEntityInstanceService
@@ -35,7 +36,25 @@ namespace Frontend.Services
                 return null;
             }
         }
-        public async Task<(bool Success, HttpStatusCode? StatusCode)> DeleteInstanceAsync(Guid instanceId, bool force = false)
+        public async Task<EntityInstanceDto?> GetInstanceAsync(Guid instanceId, bool refresh = false)
+        {
+            try
+            {
+                HttpResponseMessage response = await _httpClient.GetAsync($"/Instances/Instance/{instanceId}");
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                    return null;
+                response.EnsureSuccessStatusCode();
+
+                return await response.Content.ReadFromJsonAsync<EntityInstanceDto>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not fetch instance with ID '{InstanceId}'", instanceId);
+                await _notifs.Show($"Error while fetching instance '{instanceId}'. Error: {ex.Message}");
+                return null;
+            }
+        }
+        public async Task<(bool Success, HttpResponseMessage? Response)> DeleteInstanceAsync(Guid instanceId, bool force = false)
         {
             try
             {
@@ -45,7 +64,7 @@ namespace Frontend.Services
 
                 HttpResponseMessage response = await _httpClient.DeleteAsync(url);
 
-                return (response.IsSuccessStatusCode, response.StatusCode);
+                return (response.IsSuccessStatusCode, response);
             }
             catch (Exception ex)
             {
@@ -53,7 +72,7 @@ namespace Frontend.Services
                 return (false, null);
             }
         }
-        public async Task<(EntityInstanceDto? Instance, HttpStatusCode? StatusCode)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
+        public async Task<(EntityInstanceDto? Instance, HttpResponseMessage? Response)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
         {
             try
             {
@@ -62,7 +81,7 @@ namespace Frontend.Services
                 HttpResponseMessage response = await _httpClient.PostAsJsonAsync($"instances/{entityId}", newInstance);
                 Console.WriteLine(await response.Content.ReadAsStringAsync());
                 if (!response.IsSuccessStatusCode)
-                    return (null, response.StatusCode);
+                    return (null, response);
 
                 return (await response.Content.ReadFromJsonAsync<EntityInstanceDto>(), null);
             }
@@ -88,9 +107,27 @@ namespace Frontend.Services
                 CS.EntityInstancesCache[entityId] = entities;
             return entities;
         }
-        public async Task<(bool Success, HttpStatusCode? StatusCode)> DeleteInstanceAsync(Guid instanceId, bool force = false)
+        public async Task<EntityInstanceDto?> GetInstanceAsync(Guid instanceId, bool refresh = false)
         {
-            (bool Success, HttpStatusCode? StatusCode) result = await EIS.DeleteInstanceAsync(instanceId, force);
+            if (!refresh)
+                foreach (var list in CS.EntityInstancesCache.Values)
+                {
+                    EntityInstanceDto? instance = list.FirstOrDefault(i => i.Id == instanceId);
+                    if (instance != null)
+                        return instance;
+                }
+
+            EntityInstanceDto? entity = await EIS.GetInstanceAsync(instanceId);
+            if (entity != null && CS.EntityInstancesCache.TryGetValue(entity.EntityDefinitionId, out List<EntityInstanceDto>? instances))
+            {
+                instances.RemoveAll(i => i.Id == entity.Id);
+                instances.Add(entity);
+            }
+            return entity;
+        }
+        public async Task<(bool Success, HttpResponseMessage? Response)> DeleteInstanceAsync(Guid instanceId, bool force = false)
+        {
+            (bool Success, HttpResponseMessage? StatusCode) result = await EIS.DeleteInstanceAsync(instanceId, force);
             if (result.Success)
             {
                 var entry = CS.EntityInstancesCache.FirstOrDefault(kvp => kvp.Value.Any(instance => instance.Id == instanceId));
@@ -103,9 +140,9 @@ namespace Frontend.Services
             }
             return result;
         }
-        public async Task<(EntityInstanceDto? Instance, HttpStatusCode? StatusCode)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
+        public async Task<(EntityInstanceDto? Instance, HttpResponseMessage? Response)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
         {
-            (EntityInstanceDto? Instance, HttpStatusCode? StatusCode) result = await EIS.CreateInstanceAsync(entityId, newInstance);
+            (EntityInstanceDto? Instance, HttpResponseMessage? StatusCode) result = await EIS.CreateInstanceAsync(entityId, newInstance);
             if (result.Instance != null)
                 if (CS.EntityInstancesCache.TryGetValue(entityId, out var instanceList))
                     instanceList.Add(result.Instance);

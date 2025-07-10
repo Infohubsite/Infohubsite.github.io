@@ -18,7 +18,14 @@
             @foreach (var field in model.Fields)
             {
                 <MudPaper Outlined="true" Class="d-flex align-center pa-2 mb-2">
-                    <MudText><strong>@field.Name</strong> (@field.DataType)</MudText>
+                    <MudText>
+                        <strong>@field.Name</strong>
+                        @if (field.IsRequired)
+                        {
+                            <span style="color: red;">*</span>
+                        }
+                        (@field.DataType)
+                    </MudText>
                     <MudSpacer />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Variant="Variant.Outlined" OnClick="() => RemoveField(field)" Disabled="editing"/> @*remove disabling when editing fields is implemented*@
                 </MudPaper>
@@ -38,6 +45,8 @@
                             <MudSelectItem Value="type">@type.ToString()</MudSelectItem>
                         }
                     </MudSelect>
+
+                    <MudCheckBox T="bool" @bind-Value="newField.IsRequired" Label="Is Required" Color="Color.Primary" Class="mt-2" />
 
                     @if (newField.DataType == DataType.EntityReference)
                     {
@@ -94,10 +103,15 @@
 
     private async Task AddField()
     {
+        error = null;
         await fieldForm.Validate();
         if (!fieldValid) return;
 
-        if (model.Fields.Any(f => f.Name.Equals(newField.Name, StringComparison.OrdinalIgnoreCase))) return;
+        if (model.Fields.Any(f => f.Name.Equals(newField.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            error = "A field with the same name already exists";
+            return;
+        }
 
         model.Fields.Add(newField);
         newField = new();

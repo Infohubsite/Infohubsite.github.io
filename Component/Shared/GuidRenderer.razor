@@ -1,0 +1,60 @@
+﻿@inject IEntityDefinitionService EDS
+@inject IEntityInstanceService EIS
+
+@if (loading)
+{
+    <span class="mud-typography-body2">...</span>
+}
+else if (error != null)
+{
+    <span class="mud-typography-body2 mud-error-text">@error</span>
+}
+else if (refInstance != null)
+{
+    @if (CurrentDepth > 0)
+    {
+        <span class="mud-typography-body2">
+            (Entity: @(refInstance.EntityDefinitionName ?? "Unknown"))
+        </span>
+    }
+    else
+    {
+        <span class="mud-typography-body2">
+            (
+            @foreach ((KeyValuePair<string, object> kvp, int index) in refInstance.Data.Select((value, i) => (value, i)))
+            {
+                <strong>@kvp.Key: </strong>
+                <FieldValueDisplay Value="@kvp.Value" Depth="@(CurrentDepth + 1)" />
+                if (index < refInstance.Data.Count - 1)
+                {
+                    <text>, </text>
+                }
+            }
+            )
+        </span>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid InstanceId { get; set; }
+    [Parameter] public int CurrentDepth { get; set; }
+
+    private bool loading = true;
+    private EntityInstanceDto? refInstance;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        loading = true;
+        error = null;
+        refInstance = null;
+        Console.WriteLine("ref");
+        EntityInstanceDto? instance = await EIS.GetInstanceAsync(InstanceId);
+        if (instance == null)
+            error = $"(Instance not found: {InstanceId.ToString().Substring(0, 8)}...)";
+        else
+            refInstance = instance;
+
+        loading = false;
+    }
+}
