@@ -92,6 +92,23 @@
         {
             error = "Could not load the entity definition. Cannot create instance.";
         }
+        else
+        {
+            // Fix: Initialize model with default values for all fields.
+            // This ensures every field, including the boolean switch, has a value from the start.
+            foreach (var field in EntityDefinition.Fields)
+            {
+                // Set a default value based on the data type.
+                model.Data[field.Name] = field.DataType switch
+                {
+                    DataType.Boolean => false,
+                    DataType.Number => (double?)null,
+                    DataType.Date => (DateTime?)null,
+                    DataType.EntityReference => (Guid?)null,
+                    _ => string.Empty,
+                };
+            }
+        }
     }
 
     private async Task<IEnumerable<Guid?>> SearchInstances(Guid? targetDefId, string searchTerm)

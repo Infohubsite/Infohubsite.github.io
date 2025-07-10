@@ -101,7 +101,7 @@ namespace Frontend.Services
 
         public async Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(bool reload = false)
         {
-            if (!reload && CS.EntityDefinitionCache.Count > 0)
+            if (!reload && CS.EntityDefinitionCache.Count > 1)
                 return [.. CS.EntityDefinitionCache.Values];
             List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync();
             if (entities != null)
