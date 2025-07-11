@@ -8,6 +8,7 @@ namespace Frontend.Models.DTOs
         [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
         [JsonPropertyName("dataType")] public Enums.DataType DataType { get; set; }
         [JsonPropertyName("isRequired")] public bool IsRequired { get; set; }
+        [JsonPropertyName("isList")] public bool IsList { get; set; }
         [JsonPropertyName("entityDefinitionId")] public Guid EntityDefinitionId { get; set; }
         [JsonPropertyName("referenceTargetEntityDefinitionId")] public Guid? ReferenceTargetEntityDefinitionId { get; set; }
     }

@@ -40,7 +40,7 @@ else if (entityDefinitions != null)
                     @foreach (var field in context.Fields.Take(6))
                     {
                         <MudText>
-                            <strong>@field.Name</strong> (@(field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType))
+                            <strong>@field.Name</strong> (@((field.IsList ? "[" : "") + (field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType) + (field.IsList ? "]" : "")))
                         </MudText>
                     }
                 </MudStack>

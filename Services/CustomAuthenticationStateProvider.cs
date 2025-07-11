@@ -27,7 +27,7 @@ namespace Frontend.Services
 
         private class LoginResponse
         {
-            public string Token { get; set; } =string.Empty;
+            public string Token { get; set; } = string.Empty;
         }
 
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()

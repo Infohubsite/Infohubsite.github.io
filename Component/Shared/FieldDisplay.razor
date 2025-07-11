@@ -1,0 +1,162 @@
+﻿@using System.Text.Json
+@inject IEntityInstanceService EIS
+
+@switch (DataType)
+{
+    case DataType.Text:
+        <MudTextField
+            @ref="_textField"
+            T="string"
+            Label="@FieldName"
+            Required="Required"
+            RequiredError="@($"{FieldName} is required.")"
+            Value="@((string?)Value)"
+            ValueChanged="@(async (string val) => await OnValueChanged(val))"
+            @attributes="AdditionalAttributes" />
+        break;
+    case DataType.Number:
+        <MudNumericField
+            @ref="_numericField"
+            T="double?"
+            Label="@FieldName"
+            Required="Required"
+            RequiredError="@($"{FieldName} is required.")"
+            Value="@((double?)Value)"
+            ValueChanged="@(async (double? val) => await OnValueChanged(val))"
+            @attributes="AdditionalAttributes" />
+        break;
+    case DataType.Date:
+        <MudDatePicker
+            @ref="_datePicker"
+            Label="@FieldName"
+            Required="Required"
+            RequiredError="@($"{FieldName} is required.")"
+            Date="@((DateTime?)Value)"
+            DateChanged="@(async (DateTime? val) => await OnValueChanged(val))"
+            Clearable="!Required"
+            @attributes="AdditionalAttributes" />
+        break;
+    case DataType.Boolean:
+        @if (Required)
+        {
+            <MudSwitch
+                T="bool"
+                Label="@FieldName"
+                Color="Color.Primary"
+                Value="GetBoolValue()"
+                ValueChanged="@(async (bool val) => await OnValueChanged(val))"
+                @attributes="AdditionalAttributes" />
+        }
+        else
+        {
+            <MudSelect @ref="_selectBool" T="bool?" Label="@FieldName" Value="@((bool?)Value)" ValueChanged="@(async (bool? val) => await OnValueChanged(val))" @attributes="AdditionalAttributes">
+                <MudSelectItem Value="(bool?)null">Not set</MudSelectItem>
+                <MudSelectItem Value="(bool?)true">True</MudSelectItem>
+                <MudSelectItem Value="(bool?)false">False</MudSelectItem>
+            </MudSelect>
+        }
+        break;
+    case DataType.EntityReference:
+        <MudAutocomplete
+            @ref="_autocomplete"
+            T="EntityInstanceDto"
+            Label="@FieldName"
+            Required="Required"
+            RequiredError="@($"{FieldName} is required.")"
+            SearchFunc="@SearchInstances"
+            Value="selectedInstance"
+            ValueChanged="OnInstanceSelected"
+            ToStringFunc="@(instance => instance == null ? "" : GetInstanceDisplayName(instance))"
+            Clearable="!Required"
+            @attributes="AdditionalAttributes" />
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public string FieldName { get; set; }
+    [Parameter, EditorRequired] public DataType DataType { get; set; }
+    [Parameter, EditorRequired] public bool Required { get; set; }
+    [Parameter] public Guid? ReferenceTargetEntityDefinitionId { get; set; }
+    [Parameter] public object? Value { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object> AdditionalAttributes { get; set; } = [];
+    [Parameter] public EventCallback<object?> ValueChanged { get; set; }
+
+    private EntityInstanceDto? selectedInstance;
+
+    private MudTextField<string>? _textField;
+    private MudNumericField<double?>? _numericField;
+    private MudDatePicker? _datePicker;
+    private MudSelect<bool?>? _selectBool;
+    private MudAutocomplete<EntityInstanceDto>? _autocomplete;
+
+    public async Task Clear()
+    {
+        switch (DataType)
+        {
+            case DataType.Text when _textField != null:
+                await _textField.ResetAsync();
+                break;
+            case DataType.Number when _numericField != null:
+                await _numericField.ResetAsync();
+                break;
+            case DataType.Date when _datePicker != null:
+                await _datePicker.ResetAsync();
+                break;
+            case DataType.Boolean:
+                if (Required)
+                    await OnValueChanged(false);
+                else if (_selectBool != null)
+                    await _selectBool.ResetAsync();
+                break;
+            case DataType.EntityReference when _autocomplete != null:
+                await OnInstanceSelected(null);
+                await _autocomplete.ResetAsync();
+                break;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (DataType == DataType.EntityReference && Value is Guid instanceId && (selectedInstance == null || selectedInstance.Id != instanceId))
+            selectedInstance = await EIS.GetInstanceAsync(instanceId);
+    }
+
+    private async Task OnValueChanged(object? value)
+    {
+        Value = (value is string s && string.IsNullOrWhiteSpace(s)) ? null : value;
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private async Task OnInstanceSelected(EntityInstanceDto? instance)
+    {
+        selectedInstance = instance;
+        await OnValueChanged(instance?.Id);
+    }
+
+    private async Task<IEnumerable<EntityInstanceDto>> SearchInstances(string searchTerm, CancellationToken token)
+    {
+        if (!ReferenceTargetEntityDefinitionId.HasValue)
+            return Enumerable.Empty<EntityInstanceDto>();
+
+        List<EntityInstanceDto> instances = await EIS.GetInstancesAsync(ReferenceTargetEntityDefinitionId.Value) ?? [];
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return instances;
+
+        return instances
+            .Where(i => GetInstanceDisplayName(i).Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string GetInstanceDisplayName(EntityInstanceDto instance)
+    {
+        if (instance.Data == null) return instance.Id.ToString();
+        if (instance.Data.Count == 0) return "(no data)";
+        return string.Join(" | ", instance.Data.Select(kvp => $"{kvp.Key}: {kvp.Value}"));
+    }
+
+    private bool GetBoolValue()
+    {
+        if (Value is bool boolValue)
+            return boolValue;
+        return false;
+    }
+}

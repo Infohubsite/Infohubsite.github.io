@@ -1,0 +1,49 @@
+﻿<div class="d-flex">
+    <FieldDisplay @ref="display" FieldName="@Label" DataType="DataType" Required="Required && Values.Count == 0" ReferenceTargetEntityDefinitionId="ReferenceTargetEntityDefinitionId" @bind-Value="value" />
+    <MudButton OnClick="AddChip"
+               Variant="Variant.Filled"
+               Color="Color.Primary"
+               Class="ml-2 align-self-center">Add</MudButton>
+</div>
+
+<div class="mt-2">
+    @foreach (object chip in Values)
+    {
+        <MudChip T="string" Color="Color.Secondary" OnClose="() => RemoveChip(chip)">@chip</MudChip>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; }
+    [Parameter, EditorRequired] public DataType DataType { get; set; }
+    [Parameter, EditorRequired] public bool Required { get; set; }
+    [Parameter] public Guid? ReferenceTargetEntityDefinitionId { get; set; }
+    [Parameter] public List<object> Values { get; set; } = [];
+    [Parameter] public EventCallback<List<object>> ValuesChanged { get; set; }
+
+    private FieldDisplay display = default!;
+
+    private object? value;
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await AddChip();
+    }
+
+    private async Task AddChip()
+    {
+        if (value == null)
+            return;
+        Values.Add(value);
+        value = null;
+        await display.Clear();
+        await ValuesChanged.InvokeAsync(Values);
+    }
+
+    private Task RemoveChip(object chip)
+    {
+        Values.Remove(chip);
+        return ValuesChanged.InvokeAsync(Values);
+    }
+}

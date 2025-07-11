@@ -19,59 +19,17 @@
             }
 
             <MudForm @ref="form" @bind-IsValid="valid" Class="mt-4">
-                @foreach (var field in EntityDefinition.Fields)
+                @foreach (FieldDefinitionDto field in EntityDefinition.Fields)
                 {
-                    @switch (field.DataType)
+                    @if (field.IsList)
                     {
-                        case DataType.Text:
-                            <MudTextField T="string"
-                                Label="@field.Name"
-                                Required="field.IsRequired"
-                                RequiredError="@($"{field.Name} is required.")"
-                                ValueChanged="@((string val) => OnValueChanged(field.Name, val))" />
-                            break;
-                        case DataType.Number:
-                            <MudNumericField T="double?"
-                                Label="@field.Name"
-                                Required="field.IsRequired"
-                                RequiredError="@($"{field.Name} is required.")"
-                                ValueChanged="@((double? val) => OnValueChanged(field.Name, val))" />
-                            break;
-                        case DataType.Date:
-                            <MudDatePicker Label="@field.Name"
-                                Required="field.IsRequired"
-                                RequiredError="@($"{field.Name} is required.")"
-                                DateChanged="@((DateTime? val) => OnValueChanged(field.Name, val))"
-                                Clearable="!field.IsRequired" />
-                            break;
-                        case DataType.Boolean:
-                            @if (field.IsRequired)
-                            {
-                                <MudSwitch T="bool"
-                                    Label="@field.Name"
-                                    Color="Color.Primary"
-                                    Checked="@GetBoolValue(field.Name)"
-                                    CheckedChanged="@((bool val) => OnValueChanged(field.Name, val))" />
-                            }
-                            else
-                            {
-                                <MudSelect T="bool?" Label="@field.Name" ValueChanged="@((bool? val) => OnValueChanged(field.Name, val))">
-                                    <MudSelectItem Value="(bool?)null">Not set</MudSelectItem>
-                                    <MudSelectItem Value="(bool?)true">True</MudSelectItem>
-                                    <MudSelectItem Value="(bool?)false">False</MudSelectItem>
-                                </MudSelect>
-                            }
-                            break;
-                        case DataType.EntityReference:
-                            <MudAutocomplete T="Guid?"
-                                Label="@field.Name"
-                                Required="field.IsRequired"
-                                RequiredError="@($"{field.Name} is required.")"
-                                SearchFunc="@((searchTerm, token) => SearchInstances(field.ReferenceTargetEntityDefinitionId, searchTerm))"
-                                ValueChanged="@((Guid? val) => OnValueChanged(field.Name, val))"
-                                ToStringFunc="@(id => GetInstanceNameById(field.ReferenceTargetEntityDefinitionId, id))"
-                                Clearable="!field.IsRequired" />
-                            break;
+                        <div class="my-4">
+                            <ChipInput Label="@field.Name" Values="GetListValue(field.Name)" DataType="field.DataType" Required="field.IsRequired" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
+                        </div>
+                    }
+                    else
+                    {
+                        <FieldDisplay FieldName="@field.Name" DataType="field.DataType" Required="field.IsRequired" @bind-Value="model.Data[field.Name]" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
                     }
                 }
             </MudForm>
@@ -102,71 +60,28 @@
             error = "Could not load the entity definition. Cannot create instance.";
         else
         {
-            if (CurrentInstance.HasValue)
+            foreach (var field in EntityDefinition.Fields)
             {
-                EntityInstanceDto? instance = await EIS.GetInstanceAsync(CurrentInstance.Value);
-                if (instance != null)
-                    model.Data = instance.Data
-                        .ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
-            }
-
-            foreach (var field in EntityDefinition.Fields.Where(f => f.IsRequired && !model.Data.ContainsKey(f.Name)))
-                model.Data[field.Name] = field.DataType switch
+                if (field.IsRequired)
                 {
-                    DataType.Boolean => false,
-                    DataType.Number => (double?)null,
-                    DataType.Date => (DateTime?)null,
-                    DataType.EntityReference => (Guid?)null,
-                    _ => string.Empty,
-                };
+                    model.Data[field.Name] = field.IsList ? new List<object>() : field.DataType switch
+                        {
+                            DataType.Boolean => false,
+                            DataType.Number => (double?)null,
+                            DataType.Date => (DateTime?)null,
+                            DataType.EntityReference => (Guid?)null,
+                            _ => string.Empty,
+                        };
+                }
+            }
         }
     }
 
-    private async Task<IEnumerable<Guid?>> SearchInstances(Guid? targetDefId, string searchTerm)
+    private List<object> GetListValue(string fieldName)
     {
-        if (!targetDefId.HasValue)
-            return Enumerable.Empty<Guid?>();
-
-        List<EntityInstanceDto> instances = await EIS.GetInstancesAsync(targetDefId.Value) ?? [];
-        if (string.IsNullOrWhiteSpace(searchTerm))
-            return instances.Select(i => (Guid?)i.Id);
-
-        return instances
-            .Where(i => GetInstanceDisplayName(i).Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
-            .Select(i => (Guid?)i.Id);
-    }
-
-    private string GetInstanceNameById(Guid? entityDefId, Guid? instanceId)
-    {
-        if (instanceId == null || !entityDefId.HasValue)
-            return "";
-        EntityInstanceDto? instance = Task.Run(() => EIS.GetInstanceAsync(instanceId.Value)).GetAwaiter().GetResult();
-        return instance != null ? GetInstanceDisplayName(instance) : instanceId.Value.ToString();
-    }
-
-    private string GetInstanceDisplayName(EntityInstanceDto instance)
-    {
-        if (instance?.Data == null) return instance?.Id.ToString() ?? "";
-        var nameKey = instance.Data.Keys.FirstOrDefault(k => k.Contains("Name", StringComparison.OrdinalIgnoreCase)) ?? instance.Data.Keys.FirstOrDefault();
-        if (nameKey != null && instance.Data.TryGetValue(nameKey, out var value) && value is JsonElement json)
-            return json.ToString();
-        return instance.Id.ToString();
-    }
-
-    private bool GetBoolValue(string fieldName)
-    {
-        if (model.Data.TryGetValue(fieldName, out object? value) && value is bool boolValue)
-            return boolValue;
-        return false;
-    }
-
-    private void OnValueChanged(string fieldName, object? value)
-    {
-        bool isNullOrEmpty = value == null || (value is string s && string.IsNullOrEmpty(s));
-        if (isNullOrEmpty)
-            model.Data.Remove(fieldName);
-        else
-            model.Data[fieldName] = value;
+        if (model.Data.TryGetValue(fieldName, out object? value) && value is List<object> objList)
+            return objList;
+        return [];
     }
 
     private async Task Submit()
