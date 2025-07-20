@@ -10,73 +10,79 @@ permissions:
   id-token: write
 
 jobs:
-  build-self-hosted:
+  run-on-self-hosted:
     continue-on-error: true
     timeout-minutes: 5
     runs-on: [self-hosted, Windows, X64]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Generate Build Info File
-        shell: pwsh
-        run: |
-          $buildTime = (Get-Date).ToUniversalTime().ToString("o")
-          $commitMessage = "${{ github.event.head_commit.message }}".Replace("`n", " ").Replace("`r", "")
-          $jsonContent = @"
-          {
-            "commitMessage": "$commitMessage",
-            "buildTime": "$buildTime"
-          }
-          "@
-          $jsonContent | Out-File -FilePath wwwroot/build-info.json -Encoding utf8
-
-      - name: Publish .NET Project
-        run: dotnet publish Frontend.csproj --configuration Release --output build
-
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./build/wwwroot
-
-  build-github-hosted:
-    if: needs.build-self-hosted.outcome == 'failure'
-    needs: build-self-hosted
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0
-      - name: Generate Build Info File
-        shell: pwsh
-        run: |
-          $buildTime = (Get-Date).ToUniversalTime().ToString("o")
-          $commitMessage = "${{ github.event.head_commit.message }}".Replace("`n", " ").Replace("`r", "")
-          $jsonContent = @"
-          {
-            "commitMessage": "$commitMessage",
-            "buildTime": "$buildTime"
-          }
-          "@
-          $jsonContent | Out-File -FilePath wwwroot/build-info.json -Encoding utf8
-      - name: Publish .NET Project
-        run: dotnet publish Frontend.csproj --configuration Release --output build
-      - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./build/wwwroot
-
-  deploy:
-    needs: [build-self-hosted, build-github-hosted]
-    if: always() && (needs.build-self-hosted.outcome == 'success' || needs.build-github-hosted.outcome == 'success')
-    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Build Info File
+        shell: pwsh
+        run: |
+          $buildTime = (Get-Date).ToUniversalTime().ToString("o")
+          $commitMessage = "${{ github.event.head_commit.message }}".Replace("`n", " ").Replace("`r", "")
+          $jsonContent = @"
+          {
+            "commitMessage": "$commitMessage",
+            "buildTime": "$buildTime"
+          }
+          "@
+          $jsonContent | Out-File -FilePath wwwroot/build-info.json -Encoding utf8
+
+      - name: Publish .NET Project
+        run: dotnet publish Frontend.csproj --configuration Release --output build
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./build/wwwroot
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  run-on-github-hosted:
+    if: needs.run-on-self-hosted.outcome == 'failure'
+    needs: run-on-self-hosted
+    runs-on: windows-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0
+
+      - name: Generate Build Info File
+        shell: pwsh
+        run: |
+          $buildTime = (Get-Date).ToUniversalTime().ToString("o")
+          $commitMessage = "${{ github.event.head_commit.message }}".Replace("`n", " ").Replace("`r", "")
+          $jsonContent = @"
+          {
+            "commitMessage": "$commitMessage",
+            "buildTime": "$buildTime"
+          }
+          "@
+          $jsonContent | Out-File -FilePath wwwroot/build-info.json -Encoding utf8
+
+      - name: Publish .NET Project
+        run: dotnet publish Frontend.csproj --configuration Release --output build
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./build/wwwroot
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
