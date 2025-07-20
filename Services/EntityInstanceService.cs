@@ -1,4 +1,5 @@
-﻿using Frontend.Models.DTOs;
+﻿using Frontend.Component.User.Instances;
+using Frontend.Models.DTOs;
 using Microsoft.AspNetCore.WebUtilities;
 using System.Net;
 using System.Net.Http;
@@ -69,6 +70,7 @@ namespace Frontend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Could not delete instance with id {Id}.", instanceId);
+                await _notifs.Show($"Error while deleting instance '{instanceId}'. Error: {ex.Message}");
                 return (false, null);
             }
         }
@@ -88,6 +90,7 @@ namespace Frontend.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Could not create instance for entity '{EntityId}'.", entityId);
+                await _notifs.Show($"Error while creating instance for entity '{entityId}'. Error: {ex.Message}");
                 return (null, null);
             }
         }

@@ -18,13 +18,15 @@
             @foreach (CreateFieldDefinitionDto field in model.Fields)
             {
                 <MudPaper Outlined="true" Class="d-flex align-center pa-2 mb-2">
-                    <MudText>
+                    <MudText Style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                         <strong>@field.Name</strong>
                         @if (field.IsRequired)
                         {
                             <span style="color: red;">*</span>
                         }
-                        (@((field.IsList ? "[" : "") + (field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType) + (field.IsList ? "]" : "")))
+                    </MudText>
+                    <MudText Style="margin: 5px;">
+                        @((field.IsList ? "[" : "(") + (field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType) + (field.IsList ? "]" : ")"))
                     </MudText>
                     <MudSpacer />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Variant="Variant.Outlined" OnClick="() => RemoveField(field)" Disabled="editing"/> @*remove disabling when editing fields is implemented*@

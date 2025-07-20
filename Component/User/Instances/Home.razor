@@ -18,7 +18,7 @@
 }
 else if (entityDefinitions != null)
 {
-    <MudTable Items="entityDefinitions" Hover="true" Bordered="true" OnRowClick="(TableRowClickEventArgs<EntityDefinitionDto> args) => OpenInstance(args)" Breakpoint="Breakpoint.None">
+    <MudTable Items="entityDefinitions" Hover="true" Bordered="true" OnRowClick="(TableRowClickEventArgs<EntityDefinitionDto> args) => OpenInstance(args)" Breakpoint="Breakpoint.None" Style="white-space: nowrap;">
         <ToolBarContent>
             <MudIconButton OnClick="() => Load(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
             <AuthorizeView Roles="admin">
@@ -30,23 +30,23 @@ else if (entityDefinitions != null)
             <MudTh>Name</MudTh>
             <MudTh>Fields</MudTh>
             <AuthorizeView Roles="admin">
-                <MudTh>Actions</MudTh>
+                <MudTh Style="width: 1%;">Actions</MudTh>
             </AuthorizeView>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Fields" Style="max-width: 400px;">
-                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                    @foreach (var field in context.Fields.Take(6))
+            <MudTd DataLabel="Name" Style="width: 1%">@context.Name</MudTd>
+            <MudTd DataLabel="Fields" Style="max-width: 1px;">
+                <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="overflow: hidden;">
+                    @foreach (var field in context.Fields)
                     {
                         <MudText>
-                            <strong>@field.Name</strong> (@((field.IsList ? "[" : "") + (field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType) + (field.IsList ? "]" : "")))
+                            <strong>@field.Name</strong> @((field.IsList ? "[" : "(") + (field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType) + (field.IsList ? "]" : ")"))
                         </MudText>
                     }
                 </MudStack>
             </MudTd>
             <AuthorizeView Roles="admin" Context="_">
-                <MudTd DataLabel="Actions">
+                <MudTd DataLabel="Actions" Style="width: 1%;">
                     <MudIconButton OnClick="() => OpenEntityDialog(context)" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
                     <MudIconButton OnClick="() => OpenDeleteDialog(context)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
                 </MudTd>

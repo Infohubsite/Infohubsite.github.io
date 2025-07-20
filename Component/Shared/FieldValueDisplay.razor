@@ -4,9 +4,22 @@
         <GuidRenderer InstanceId="@guidr" CurrentDepth="@Depth" />
         break;
 
+    case DisplayMode.Array:
+        <span style="display: inline-flex; align-items: baseline;">
+            <span>[</span>
+            <span style="display: inline-flex; gap: 10px; padding: 0 4px;">
+                @foreach (var item in jear)
+                {
+                    <FieldValueDisplay Value="@item" Depth="@Depth" />
+                }
+            </span>
+            <span>]</span>
+        </span>
+        break;
+
     case DisplayMode.DateTime:
     case DisplayMode.PlainText:
-        @textr
+        <span>@textr</span>
         break;
 
     case DisplayMode.NotSet:
@@ -18,10 +31,11 @@
     [Parameter, EditorRequired] public object? Value { get; set; }
     [Parameter] public int Depth { get; set; } = 0;
 
-    private enum DisplayMode { NotSet, PlainText, DateTime, Guid }
+    private enum DisplayMode { NotSet, PlainText, DateTime, Guid, Array }
     private DisplayMode mode;
 
     private string? textr;
+    private System.Text.Json.JsonElement.ArrayEnumerator jear;
     private Guid guidr;
 
     protected override void OnParametersSet()
@@ -57,9 +71,14 @@
                 case System.Text.Json.JsonValueKind.Null:
                     mode = DisplayMode.NotSet;
                     break;
+                case System.Text.Json.JsonValueKind.Array:
+                    mode = DisplayMode.Array;
+                    jear = je.EnumerateArray();
+                    break;
                 default:
                     mode = DisplayMode.PlainText;
                     textr = je.ToString();
+                    Console.WriteLine("DISPLAY NOT SET FOR: " + textr);
                     break;
             }
         }

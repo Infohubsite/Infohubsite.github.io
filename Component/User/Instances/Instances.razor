@@ -29,30 +29,30 @@ else
 }
 else if (entityInstances != null && !locked)
 {
-    <MudTable Items="entityInstances" Bordered="true" Breakpoint="Breakpoint.None">
+    <MudTable Items="entityInstances" Bordered="true" Breakpoint="Breakpoint.None" Style="white-space: nowrap;">
         <ToolBarContent>
-            <MudIconButton OnClick="@(() => NM.NavigateTo("/"))" Icon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Secondary" Style="margin: 0px 10px 0px 0px;"/>
+            <MudIconButton OnClick="@(() => NM.NavigateTo("/"))" Icon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Secondary" Style="margin: 0px 10px 0px 0px;" />
             <MudIconButton OnClick="() => Load(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
             <MudSpacer />
             <MudButton OnClick="() => OpenInstanceDialog()" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Create Instance</MudButton>
         </ToolBarContent>
         <HeaderContent>
             <MudTh>Fields</MudTh>
-            <MudTh>Actions</MudTh>
+            <MudTh Style="width: 1%;">Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="Fields">
-                <MudStack Row="true" Spacing="3">
+            <MudTd DataLabel="Fields" Style="max-width: 1px;">
+                <MudStack Row="true" Spacing="3" Class="mud-typography-body1" Style="overflow: hidden;">
                     @foreach (KeyValuePair<string, object> field in context.Data)
                     {
-                        <MudText>
-                            <strong>@field.Key</strong>:
+                        <div>
+                            <strong>@field.Key:</strong>
                             <FieldValueDisplay Value="@field.Value" />
-                        </MudText>
+                        </div>
                     }
                 </MudStack>
             </MudTd>
-            <MudTd DataLabel="Actions">
+            <MudTd DataLabel="Actions" Style="width: 1%;">
                 <MudIconButton OnClick="@(async () => await NS.Show("Not implemented", Severity.Warning)/*OpenInstanceDialog(context)*/)" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
                 <MudIconButton OnClick="() => OpenDeleteDialog(context)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
             </MudTd>

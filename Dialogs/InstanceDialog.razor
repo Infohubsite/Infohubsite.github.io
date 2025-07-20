@@ -24,7 +24,7 @@
                     @if (field.IsList)
                     {
                         <div class="my-4">
-                            <ChipInput Label="@field.Name" Values="GetListValue(field.Name)" DataType="field.DataType" Required="field.IsRequired" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
+                            <ChipInput Label="@field.Name" Values="GetListValue(field.Name)" ValuesChanged="StateHasChanged" DataType="field.DataType" Required="field.IsRequired" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
                         </div>
                     }
                     else
@@ -37,7 +37,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(!valid)">@ButtonText</MudButton>
+        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(!CheckValid())">@ButtonText</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -59,40 +59,41 @@
         if (EntityDefinition == null)
             error = "Could not load the entity definition. Cannot create instance.";
         else
-        {
-            foreach (var field in EntityDefinition.Fields)
-            {
-                if (field.IsRequired)
+            foreach (FieldDefinitionDto field in EntityDefinition.Fields)
+                model.Data[field.Name] = field.IsList ? new List<object>() : field.DataType switch
                 {
-                    model.Data[field.Name] = field.IsList ? new List<object>() : field.DataType switch
-                        {
-                            DataType.Boolean => false,
-                            DataType.Number => (double?)null,
-                            DataType.Date => (DateTime?)null,
-                            DataType.EntityReference => (Guid?)null,
-                            _ => string.Empty,
-                        };
-                }
-            }
-        }
+                    DataType.Boolean => field.IsRequired ? false : (bool?)null,
+                    DataType.Number => (double?)null,
+                    DataType.Date => (DateTime?)null,
+                    DataType.EntityReference => (Guid?)null,
+                    DataType.Text => string.Empty,
+                    _ => null
+                };
     }
 
     private List<object> GetListValue(string fieldName)
     {
-        if (model.Data.TryGetValue(fieldName, out object? value) && value is List<object> objList)
-            return objList;
-        return [];
+        if (model.Data.TryGetValue(fieldName, out object? value) && value is List<object> list)
+            return list;
+        model.Data[fieldName] = new List<object>();
+        return (List<object>)model.Data[fieldName]!;
     }
 
     private async Task Submit()
     {
         await form.Validate();
-        if (!valid) return;
+        if (!CheckValid()) return;
 
-        foreach (var key in model.Data.Where(kvp => kvp.Value == null).Select(kvp => kvp.Key).ToList())
-            model.Data.Remove(key);
+        CreateInstanceDto payload = new() { Data = new(model.Data) };
 
-        var (instance, response) = await EIS.CreateInstanceAsync(EntityDefinitionId, model);
+        foreach (FieldDefinitionDto field in EntityDefinition!.Fields.Where(f => !f.IsRequired))
+        {
+            if (!payload.Data.TryGetValue(field.Name, out object? value)) continue;
+
+            if (value == null || ((field.IsList && value is List<object> list && list.Count == 0) || (field.DataType == DataType.Text && value is string str && string.IsNullOrWhiteSpace(str))))
+                payload.Data.Remove(field.Name);
+        }
+        (EntityInstanceDto? instance, HttpResponseMessage? response) = await EIS.CreateInstanceAsync(EntityDefinitionId, payload);
 
         if (instance != null)
         {
@@ -101,11 +102,22 @@
         }
 
         if (response == null)
-            error = "Failed to create instance. Did not receive a response from the server.";
+            error = "Failed to the create instance. Did not receive a response from the server.";
         else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
-            error = $"Failed to create instance. {(await response.Content.ReadFromJsonAsync<Rsp>())?.message}";
+            error = $"Failed to the create instance. {(await response.Content.ReadFromJsonAsync<Rsp>())?.message}";
         else
-            error = $"Failed to create instance. The server responded with status: {response.StatusCode}.";
+            error = $"Failed to the create instance. The server responded with status: {response.StatusCode}.";
+    }
+
+    private bool CheckValid()
+    {
+        if (!valid) return false;
+        if (EntityDefinition == null) return false;
+
+        foreach (FieldDefinitionDto field in EntityDefinition.Fields.Where(f => f.IsList && f.IsRequired))
+            if (model.Data.TryGetValue(field.Name, out object? value) && value is List<object> list && list.Count == 0)
+                return false;
+        return true;
     }
 
     private void Cancel() => MudDialog.Cancel();

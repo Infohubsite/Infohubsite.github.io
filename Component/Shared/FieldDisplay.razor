@@ -50,7 +50,7 @@
         else
         {
             <MudSelect @ref="_selectBool" T="bool?" Label="@FieldName" Value="@((bool?)Value)" ValueChanged="@(async (bool? val) => await OnValueChanged(val))" @attributes="AdditionalAttributes">
-                <MudSelectItem Value="(bool?)null">Not set</MudSelectItem>
+                <MudSelectItem Value="(bool?)null"> </MudSelectItem>
                 <MudSelectItem Value="(bool?)true">True</MudSelectItem>
                 <MudSelectItem Value="(bool?)false">False</MudSelectItem>
             </MudSelect>

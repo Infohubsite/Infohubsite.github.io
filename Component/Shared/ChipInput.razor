@@ -9,7 +9,16 @@
 <div class="mt-2">
     @foreach (object chip in Values)
     {
-        <MudChip T="string" Color="Color.Secondary" OnClose="() => RemoveChip(chip)">@chip</MudChip>
+        <MudChip T="string" Color="Color.Secondary" OnClose="() => RemoveChip(chip)">
+            @if (DataType == DataType.EntityReference && chip is Guid guid)
+            {
+                <GuidRenderer CurrentDepth="0" InstanceId="guid" />
+            }
+            else
+            {
+                @chip
+            }
+        </MudChip>
     }
 </div>
 

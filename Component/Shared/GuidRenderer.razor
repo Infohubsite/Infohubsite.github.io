@@ -48,7 +48,6 @@ else if (refInstance != null)
         loading = true;
         error = null;
         refInstance = null;
-        Console.WriteLine("ref");
         EntityInstanceDto? instance = await EIS.GetInstanceAsync(InstanceId);
         if (instance == null)
             error = $"(Instance not found: {InstanceId.ToString().Substring(0, 8)}...)";
