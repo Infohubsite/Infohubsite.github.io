@@ -11,16 +11,12 @@ permissions:
 
 jobs:
   build-self-hosted:
-    runs-on: [self-hosted, Windows, X64]
+    continue-on-error: true
     timeout-minutes: 5
+    runs-on: [self-hosted, Windows, X64]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0
 
       - name: Generate Build Info File
         shell: pwsh
@@ -43,8 +39,9 @@ jobs:
         with:
           path: ./build/wwwroot
 
+  # --- FALLBACK TO GITHUB-HOSTED RUNNER ---
   build-github-hosted:
-    if: failure()
+    if: needs.build-self-hosted.result == 'failure'
     needs: build-self-hosted
     runs-on: windows-latest
     steps:
@@ -79,7 +76,7 @@ jobs:
 
   deploy:
     needs: [build-self-hosted, build-github-hosted]
-    if: success() || failure() && needs.build-github-hosted.result == 'success'
+    if: needs.build-self-hosted.result == 'success' || needs.build-github-hosted.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
