@@ -21,7 +21,6 @@ jobs:
       - name: Generate Build Info File
         shell: pwsh
         run: |
-          # This step will now work after you install PowerShell Core
           $buildTime = (Get-Date).ToUniversalTime().ToString("o")
           $commitMessage = "${{ github.event.head_commit.message }}".Replace("`n", " ").Replace("`r", "")
           $jsonContent = @"
