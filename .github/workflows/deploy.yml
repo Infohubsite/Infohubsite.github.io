@@ -40,7 +40,7 @@ jobs:
           path: ./build/wwwroot
 
   build-github-hosted:
-    if: needs.build-self-hosted.result == 'failure'
+    if: needs.build-self-hosted.outcome == 'failure'
     needs: build-self-hosted
     runs-on: windows-latest
     steps:
@@ -71,7 +71,7 @@ jobs:
 
   deploy:
     needs: [build-self-hosted, build-github-hosted]
-    if: always() && (needs.build-self-hosted.result == 'success' || needs.build-github-hosted.result == 'success')
+    if: always() && (needs.build-self-hosted.outcome == 'success' || needs.build-github-hosted.outcome == 'success')
     runs-on: ubuntu-latest
     environment:
       name: github-pages
