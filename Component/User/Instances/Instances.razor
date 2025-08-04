@@ -53,7 +53,7 @@ else if (entityInstances != null && !locked)
                 </MudStack>
             </MudTd>
             <MudTd DataLabel="Actions" Style="width: 1%;">
-                <MudIconButton OnClick="@(async () => await NS.Show("Not implemented", Severity.Warning)/*OpenInstanceDialog(context)*/)" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
+                <MudIconButton OnClick="@(async () => await OpenInstanceDialog(context))" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
                 <MudIconButton OnClick="() => OpenDeleteDialog(context)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
             </MudTd>
         </RowTemplate>
@@ -124,11 +124,12 @@ else if (entityInstances != null && !locked)
         if (result == null || result.Canceled)
             return;
 
-        EntityInstanceDto? entity = result.Data as EntityInstanceDto;
-        if (entity == null)
+        if (result.Data is not EntityInstanceDto instance)
             return;
 
-        entityInstances = await EIS.GetInstancesAsync(EntityId);
+        if (context == null) await NS.Show("Instance created successfully.", Severity.Success);
+        else await NS.Show("Instance updated successfully.", Severity.Success);
+        StateHasChanged();
     }
 
     private async Task OpenDeleteDialog(EntityInstanceDto context)

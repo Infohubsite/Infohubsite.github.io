@@ -58,19 +58,56 @@
         EntityDefinition = await EDS.GetEntityDefinitionAsync(EntityDefinitionId);
         if (EntityDefinition == null)
             error = "Could not load the entity definition. Cannot create instance.";
-        else
+        else if (CurrentInstance == null)
             foreach (FieldDefinitionDto field in EntityDefinition.Fields)
-                model.Data[field.Name] = field.IsList ? new List<object>() : field.DataType switch
-                {
-                    DataType.Boolean => field.IsRequired ? false : (bool?)null,
-                    DataType.Number => (double?)null,
-                    DataType.Date => (DateTime?)null,
-                    DataType.EntityReference => (Guid?)null,
-                    DataType.Text => string.Empty,
-                    _ => null
-                };
+                model.Data[field.Name] = field.IsList ? new List<object>() : GetDefaultValue(field.DataType, field.IsRequired);
+        else
+        {
+            EntityInstanceDto? instance = await EIS.GetInstanceAsync((Guid)CurrentInstance);
+            if (instance == null)
+                error = "Could not load the instance to edit.";
+            else
+            {
+                model.Data = instance.Data.ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
+                foreach (FieldDefinitionDto field in EntityDefinition.Fields)
+                    if (model.Data.TryGetValue(field.Name, out var value) && value is JsonElement je)
+                        model.Data[field.Name] = ConvertJsonElement(je, field.DataType, field.IsList);
+                    else if (!model.Data.ContainsKey(field.Name))
+                        model.Data[field.Name] = field.IsList ? new List<object>() : GetDefaultValue(field.DataType, field.IsRequired);
+            }
+        }
     }
 
+    private object? ConvertJsonElement(JsonElement je, DataType dataType, bool isList)
+    {
+        if (isList)
+            return je.ValueKind == JsonValueKind.Array
+                ? je.EnumerateArray()
+                    .Select(e => ConvertJsonElement(e, dataType, false))
+                    .Where(i => i != null)
+                    .Cast<object>()
+                    .ToList<object>()
+                : new List<object>();
+
+        return dataType switch
+        {
+            DataType.Text => je.ToString(),
+            DataType.Number => je.TryGetDouble(out var d) ? d : (double?)null,
+            DataType.Date => je.TryGetDateTime(out var dt) ? dt : (DateTime?)null,
+            DataType.Boolean => je.GetBoolean(),
+            DataType.EntityReference => je.TryGetGuid(out var g) ? g : (Guid?)null,
+            _ => null
+        };
+    }
+    private object? GetDefaultValue(DataType dataType, bool isRequired) => dataType switch
+    {
+        DataType.Boolean => isRequired ? false : (bool?)null,
+        DataType.Number => (double?)null,
+        DataType.Date => (DateTime?)null,
+        DataType.EntityReference => (Guid?)null,
+        DataType.Text => string.Empty,
+        _ => null
+    };
     private List<object> GetListValue(string fieldName)
     {
         if (model.Data.TryGetValue(fieldName, out object? value) && value is List<object> list)
@@ -84,31 +121,51 @@
         await form.Validate();
         if (!CheckValid()) return;
 
-        CreateInstanceDto payload = new() { Data = new(model.Data) };
+        Dictionary<string, object?> payload = new(model.Data);
 
         foreach (FieldDefinitionDto field in EntityDefinition!.Fields.Where(f => !f.IsRequired))
         {
-            if (!payload.Data.TryGetValue(field.Name, out object? value)) continue;
+            if (!payload.TryGetValue(field.Name, out object? value)) continue;
 
             if (value == null || ((field.IsList && value is List<object> list && list.Count == 0) || (field.DataType == DataType.Text && value is string str && string.IsNullOrWhiteSpace(str))))
-                payload.Data.Remove(field.Name);
+                payload.Remove(field.Name);
         }
-        (EntityInstanceDto? instance, HttpResponseMessage? response) = await EIS.CreateInstanceAsync(EntityDefinitionId, payload);
 
-        if (instance != null)
+        if (CurrentInstance == null)
         {
-            MudDialog.Close(DialogResult.Ok(instance));
-            return;
-        }
+            (EntityInstanceDto? instance, HttpResponseMessage? response) = await EIS.CreateInstanceAsync(EntityDefinitionId, new() { Data = payload });
 
-        if (response == null)
-            error = "Failed to the create instance. Did not receive a response from the server.";
-        else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
-            error = $"Failed to the create instance. {(await response.Content.ReadFromJsonAsync<Rsp>())?.message}";
+            if (instance != null)
+            {
+                MudDialog.Close(DialogResult.Ok(instance));
+                return;
+            }
+
+            error = await GetErrorMessage(response, "create");
+        }
         else
-            error = $"Failed to the create instance. The server responded with status: {response.StatusCode}.";
+        {
+            (bool success, HttpResponseMessage? response) = await EIS.UpdateInstanceAsync((Guid)CurrentInstance, new() { Data = payload });
+
+            if (success)
+            {
+                MudDialog.Close(DialogResult.Ok(await EIS.GetInstanceAsync((Guid)CurrentInstance)));
+                return;
+            }
+
+            error = await GetErrorMessage(response, "update");
+        }
     }
 
+    private async Task<string> GetErrorMessage(HttpResponseMessage? response, string action)
+    {
+        if (response == null)
+            return $"Failed to {action} instance. No response from server.";
+        else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            return $"Failed to {action} instance. {(await response.Content.ReadFromJsonAsync<Rsp>())?.message}";
+        else
+            return $"Failed to {action} instance. Server responded with: {response.StatusCode}.";
+    }
     private bool CheckValid()
     {
         if (!valid) return false;
@@ -119,8 +176,6 @@
                 return false;
         return true;
     }
-
     private void Cancel() => MudDialog.Cancel();
-
     private class Rsp { public string message { get; set; } = string.Empty; }
 }

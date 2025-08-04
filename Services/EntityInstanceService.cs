@@ -1,8 +1,7 @@
-﻿using Frontend.Component.User.Instances;
-using Frontend.Models.DTOs;
+﻿using Frontend.Models.DTOs;
+using Frontend.Extenstions;
 using Microsoft.AspNetCore.WebUtilities;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Json;
 
 namespace Frontend.Services
@@ -13,6 +12,7 @@ namespace Frontend.Services
         Task<EntityInstanceDto?> GetInstanceAsync(Guid instanceId, bool refresh = false);
         Task<(bool Success, HttpResponseMessage? Response)> DeleteInstanceAsync(Guid instanceId, bool force = false);
         Task<(EntityInstanceDto? Instance, HttpResponseMessage? Response)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance);
+        Task<(bool Success, HttpResponseMessage? Response)> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto);
     }
 
     public class EntityInstanceService(IHttpClientFactory httpClientFactory, ILogger<EntityInstanceService> logger, INotificationService notifs) : IEntityInstanceService
@@ -78,10 +78,7 @@ namespace Frontend.Services
         {
             try
             {
-                foreach (var a in newInstance.Data)
-                    Console.WriteLine(a.ToString());
-                HttpResponseMessage response = await _httpClient.PostAsJsonAsync($"instances/{entityId}", newInstance);
-                Console.WriteLine(await response.Content.ReadAsStringAsync());
+                HttpResponseMessage response = await _httpClient.PostAsJsonAsync($"/Instances/{entityId}", newInstance);
                 if (!response.IsSuccessStatusCode)
                     return (null, response);
 
@@ -92,6 +89,20 @@ namespace Frontend.Services
                 _logger.LogError(ex, "Could not create instance for entity '{EntityId}'.", entityId);
                 await _notifs.Show($"Error while creating instance for entity '{entityId}'. Error: {ex.Message}");
                 return (null, null);
+            }
+        }
+        public async Task<(bool Success, HttpResponseMessage? Response)> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto)
+        {
+            try
+            {
+                HttpResponseMessage response = await _httpClient.PutAsJsonAsync($"/Instances/{instanceId}", updateDto);
+                return (response.IsSuccessStatusCode, response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not update instance with id '{Id}'.", instanceId);
+                await _notifs.Show($"Error while updating instance '{instanceId}'. Error: {ex.Message}");
+                return (false, null);
             }
         }
     }
@@ -112,13 +123,8 @@ namespace Frontend.Services
         }
         public async Task<EntityInstanceDto?> GetInstanceAsync(Guid instanceId, bool refresh = false)
         {
-            if (!refresh)
-                foreach (var list in CS.EntityInstancesCache.Values)
-                {
-                    EntityInstanceDto? instance = list.FirstOrDefault(i => i.Id == instanceId);
-                    if (instance != null)
-                        return instance;
-                }
+            if (!refresh && CS.EntityInstancesCache.TryGetInstance(instanceId, out EntityInstanceDto? instance))
+                return instance;
 
             EntityInstanceDto? entity = await EIS.GetInstanceAsync(instanceId);
             if (entity != null && CS.EntityInstancesCache.TryGetValue(entity.EntityDefinitionId, out List<EntityInstanceDto>? instances))
@@ -133,7 +139,7 @@ namespace Frontend.Services
             (bool Success, HttpResponseMessage? StatusCode) result = await EIS.DeleteInstanceAsync(instanceId, force);
             if (result.Success)
             {
-                var entry = CS.EntityInstancesCache.FirstOrDefault(kvp => kvp.Value.Any(instance => instance.Id == instanceId));
+                KeyValuePair<Guid, List<EntityInstanceDto>> entry = CS.EntityInstancesCache.FirstOrDefault(kvp => kvp.Value.Any(instance => instance.Id == instanceId));
                 if (entry.Value != null)
                 {
                     entry.Value.RemoveAll(instance => instance.Id == instanceId);
@@ -151,6 +157,16 @@ namespace Frontend.Services
                     instanceList.Add(result.Instance);
                 else
                     CS.EntityInstancesCache[entityId] = [result.Instance];
+            return result;
+        }
+        public async Task<(bool Success, HttpResponseMessage? Response)> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto)
+        {
+            (bool Success, HttpResponseMessage? Response) result = await EIS.UpdateInstanceAsync(instanceId, updateDto);
+            if (result.Success)
+            {
+                EntityInstanceDto? instance = CS.EntityInstancesCache.Values.SelectMany(l => l).FirstOrDefault(i => i.Id == instanceId);
+                if (instance != null) instance.Data = updateDto.Data.Where(kvp => kvp.Value != null).ToDictionary(kvp => kvp.Key, kvp => kvp.Value!);
+            }
             return result;
         }
     }
