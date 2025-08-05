@@ -22,9 +22,11 @@ jobs:
           dotnet-version: 8.0
 
       - name: Generate Build Info File
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           echo '{' > wwwroot/build-info.json
-          echo '  "commitMessage": "${{ github.event.head_commit.message }}",' >> wwwroot/build-info.json
+          echo '  "commitMessage": ${{ toJSON(env.COMMIT_MESSAGE) }},' >> wwwroot/build-info.json
           echo '  "buildTime": "'$(date -u --iso-8601=seconds)'"' >> wwwroot/build-info.json
           echo '}' >> wwwroot/build-info.json
 
