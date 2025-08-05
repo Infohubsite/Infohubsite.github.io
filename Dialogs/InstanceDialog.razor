@@ -63,12 +63,12 @@
                 model.Data[field.Name] = field.IsList ? new List<object>() : GetDefaultValue(field.DataType, field.IsRequired);
         else
         {
-            EntityInstanceDto? instance = await EIS.GetInstanceAsync((Guid)CurrentInstance);
-            if (instance == null)
-                error = "Could not load the instance to edit.";
+            Result<EntityInstanceDto?> result = await EIS.GetInstanceAsync((Guid)CurrentInstance);
+            if (!result.IsSuccess || result.Value == null)
+                error = result.ErrorMessage == null ? "Could not load the instance to edit." : result.ErrorMessage;
             else
             {
-                model.Data = instance.Data.ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
+                model.Data = result.Value.Data.ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
                 foreach (FieldDefinitionDto field in EntityDefinition.Fields)
                     if (model.Data.TryGetValue(field.Name, out var value) && value is JsonElement je)
                         model.Data[field.Name] = ConvertJsonElement(je, field.DataType, field.IsList);
@@ -133,38 +133,36 @@
 
         if (CurrentInstance == null)
         {
-            (EntityInstanceDto? instance, HttpResponseMessage? response) = await EIS.CreateInstanceAsync(EntityDefinitionId, new() { Data = payload });
+            Result<EntityInstanceDto?> result = await EIS.CreateInstanceAsync(EntityDefinitionId, new() { Data = payload });
 
-            if (instance != null)
+            if (result.Value != null)
             {
-                MudDialog.Close(DialogResult.Ok(instance));
+                MudDialog.Close(DialogResult.Ok(result.Value));
                 return;
             }
 
-            error = await GetErrorMessage(response, "create");
+            error = GetErrorMessage(result, "create");
         }
         else
         {
-            (bool success, HttpResponseMessage? response) = await EIS.UpdateInstanceAsync((Guid)CurrentInstance, new() { Data = payload });
+            Result result = await EIS.UpdateInstanceAsync((Guid)CurrentInstance, new() { Data = payload });
 
-            if (success)
+            if (result.IsSuccess)
             {
                 MudDialog.Close(DialogResult.Ok(await EIS.GetInstanceAsync((Guid)CurrentInstance)));
                 return;
             }
 
-            error = await GetErrorMessage(response, "update");
+            error = GetErrorMessage(result, "update");
         }
     }
 
-    private async Task<string> GetErrorMessage(HttpResponseMessage? response, string action)
+    private string GetErrorMessage(Result result, string action)
     {
-        if (response == null)
+        if (result.StatusCode == null)
             return $"Failed to {action} instance. No response from server.";
-        else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
-            return $"Failed to {action} instance. {(await response.Content.ReadFromJsonAsync<Rsp>())?.message}";
         else
-            return $"Failed to {action} instance. Server responded with: {response.StatusCode}.";
+            return $"Failed to {action} instance. {result.ErrorMessage}";
     }
     private bool CheckValid()
     {

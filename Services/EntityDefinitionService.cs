@@ -5,7 +5,7 @@ namespace Frontend.Services
 {
     public interface IEntityDefinitionService
     {
-        Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(bool reload = false);
+        Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(int limit = 20, int offset = 0, bool reload = false);
         Task<EntityDefinitionDto?> GetEntityDefinitionAsync(Guid entityId, bool reload = false);
         Task<EntityDefinitionDto?> CreateEntityAsync(CreateEntityWithFieldsDto newEntity);
         Task<bool> DeleteEntityAsync(Guid id);
@@ -18,11 +18,11 @@ namespace Frontend.Services
         private readonly ILogger<EntityDefinitionService> _logger = logger;
         private readonly INotificationService _notificationService = notificationService;
 
-        public async Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(bool reload = false)
+        public async Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(int limit = 20, int offset = 0, bool reload = false)
         {
             try
             {
-                HttpResponseMessage response = await this._httpClient.GetAsync("/EntityDefinitions");
+                HttpResponseMessage response = await this._httpClient.GetAsync($"/EntityDefinitions?limit={limit}&offset={offset}");
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<List<EntityDefinitionDto>>();
             }
@@ -99,11 +99,11 @@ namespace Frontend.Services
         private readonly IEntityDefinitionService EDS = eds;
         private readonly ICacheService CS = cs;
 
-        public async Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(bool reload = false)
+        public async Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(int limit = 20, int offset = 0, bool reload = false)
         {
             if (!reload && CS.EntityDefinitionCache.Count > 1)
-                return [.. CS.EntityDefinitionCache.Values];
-            List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync();
+                return [.. CS.EntityDefinitionCache.Values.OrderBy(i => i.Name)];
+            List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync(limit, offset);
             if (entities != null)
                 CS.EntityDefinitionCache = entities.ToDictionary(e => e.Id, e => e);
             return entities;

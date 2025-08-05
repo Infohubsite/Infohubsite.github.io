@@ -118,7 +118,7 @@
     protected override async Task OnParametersSetAsync()
     {
         if (DataType == DataType.EntityReference && Value is Guid instanceId && (selectedInstance == null || selectedInstance.Id != instanceId))
-            selectedInstance = await EIS.GetInstanceAsync(instanceId);
+            selectedInstance = (await EIS.GetInstanceAsync(instanceId)).Value;
     }
 
     private async Task OnValueChanged(object? value)
@@ -138,7 +138,7 @@
         if (!ReferenceTargetEntityDefinitionId.HasValue)
             return Enumerable.Empty<EntityInstanceDto>();
 
-        List<EntityInstanceDto> instances = await EIS.GetInstancesAsync(ReferenceTargetEntityDefinitionId.Value) ?? [];
+        List<EntityInstanceDto> instances = (await EIS.GetInstancesAsync(ReferenceTargetEntityDefinitionId.Value)).Value ?? [];
         if (string.IsNullOrWhiteSpace(searchTerm))
             return instances;
 

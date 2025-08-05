@@ -1,4 +1,5 @@
 ﻿@page "/Instances/{EntityIdstr}"
+@inject ICacheService CS
 @inject IEntityInstanceService EIS
 @inject IEntityDefinitionService EDS
 @inject IDialogService DS
@@ -96,11 +97,18 @@ else if (entityInstances != null && !locked)
     private async Task Load(bool refresh = false)
     {
         loading = true;
-        List<EntityInstanceDto>? instances = await EIS.GetInstancesAsync(EntityId, refresh);
-        if (instances == null)
-            errors.Add("Failed to get entity instances");
+        Result<List<EntityInstanceDto>?> result = await EIS.GetInstancesAsync(EntityId, refresh);
+        if (result.IsSuccess)
+            entityInstances = result.Value;
+        else if (result.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            await NS.Show("Could not find entity definition in database. It was possibly deleted", Severity.Warning);
+            CS.EntityDefinitionCache.Remove(EntityId);
+            NM.NavigateTo("/");
+        }
         else
-            entityInstances = instances;
+            errors.Add(result.ErrorMessage == null ? "Failed to get entity instances" : result.ErrorMessage);
+
         loading = false;
     }
 
@@ -126,6 +134,8 @@ else if (entityInstances != null && !locked)
 
         if (result.Data is not EntityInstanceDto instance)
             return;
+
+        await Load();
 
         if (context == null) await NS.Show("Instance created successfully.", Severity.Success);
         else await NS.Show("Instance updated successfully.", Severity.Success);
@@ -157,9 +167,18 @@ else if (entityInstances != null && !locked)
                 x => x.OnSubmit,
                 async () =>
                 {
-                    (bool Success, HttpResponseMessage? Response) result = await EIS.DeleteInstanceAsync(context.Id);
-                    if (result.Response?.StatusCode != System.Net.HttpStatusCode.Conflict)
-                        return result.Success;
+                    Result result = await EIS.DeleteInstanceAsync(context.Id);
+                    if (result.StatusCode != System.Net.HttpStatusCode.Conflict)
+                    {
+                        if (result.StatusCode != System.Net.HttpStatusCode.NotFound)
+                            return result.IsSuccess;
+                        else
+                        {
+                            await NS.Show("Instance not found", Severity.Warning);
+                            await Load(true);
+                            return true;
+                        }
+                    }
 
                     DialogParameters<ConfirmationDialog> innerParameters = new()
                     {
@@ -174,7 +193,7 @@ else if (entityInstances != null && !locked)
                         { x => x.ButtonText, "Force Delete" },
                         { x => x.ButtonColor, Color.Error },
                         { x => x.ButtonStartIcon, Icons.Material.Filled.DeleteForever },
-                        { x => x.OnSubmit, async () => (await EIS.DeleteInstanceAsync(context.Id, true)).Success }
+                        { x => x.OnSubmit, async () => (await EIS.DeleteInstanceAsync(context.Id, true)).IsSuccess }
                     };
 
                     IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Force Delete", innerParameters, options);
@@ -184,7 +203,7 @@ else if (entityInstances != null && !locked)
                     return false;
                 }
             },
-            { x => x.ErrorMessage, "Failed to delete the entity instance. Maybe it is in use?"}
+            { x => x.ErrorMessage, "Failed to delete the entity instance"}
         };
 
         IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Confirm Deletion", parameters, options);
@@ -192,7 +211,7 @@ else if (entityInstances != null && !locked)
         if (result == null || result.Canceled)
             return;
 
-        if (result.Data is bool && (bool) result.Data)
+        if (this.entityInstances?.Contains(context) == true && result.Data is bool && (bool)result.Data)
         {
             this.entityInstances?.Remove(context);
             await NS.Show($"Successfully deleted the instance", Severity.Success);

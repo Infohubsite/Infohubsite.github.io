@@ -1,5 +1,4 @@
 ﻿using Frontend.Models;
-using Frontend.Utils;
 using Microsoft.AspNetCore.Components.Authorization;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -37,25 +36,15 @@ namespace Frontend.Services
             {
                 var token = await _localStorage.GetItemAsync<string>("authToken");
 
-                if (string.IsNullOrEmpty(token))
-                    throw new UnauthenticatedException();
+                if (string.IsNullOrEmpty(token)) return await NoAuth();
 
                 Dictionary<string, object>? dict = ParsePayloadFromJwt(token);
-                if (dict == null || !dict.TryGetValue("exp", out object? expObject) || expObject == null)
-                    throw new UnauthenticatedException();
-
-                if (!long.TryParse(expObject.ToString(), out long expValue))
-                    throw new UnauthenticatedException();
-
-                if (DateTimeOffset.FromUnixTimeSeconds(expValue) <= DateTimeOffset.UtcNow)
-                    throw new UnauthenticatedException();
+                if (dict == null || !dict.TryGetValue("exp", out object? expObject) || expObject == null) return await NoAuth();
+                if (!long.TryParse(expObject.ToString(), out long expValue)) return await NoAuth();
+                if (DateTimeOffset.FromUnixTimeSeconds(expValue) <= DateTimeOffset.UtcNow) return await NoAuth();
 
                 _authenticated = true;
                 return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(dict), "jwt")));
-            }
-            catch (UnauthenticatedException)
-            {
-                await _localStorage.RemoveItemAsync("authToken");
             }
             catch (Exception ex)
             {
@@ -124,10 +113,15 @@ namespace Frontend.Services
             catch (Exception ex)
             {
                 this._logger.LogWarning(ex, "Exception in '{MethodName}'", nameof(LoginAsync));
-                //throw;
             }
 
             return string.Empty;
+        }
+
+        private async Task<AuthenticationState> NoAuth()
+        {
+            await _localStorage.RemoveItemAsync("authToken");
+            return new AuthenticationState(Unauthenticated);
         }
 
         private static Dictionary<string, object>? ParsePayloadFromJwt(string jwt)

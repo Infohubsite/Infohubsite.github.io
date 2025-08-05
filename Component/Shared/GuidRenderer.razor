@@ -48,11 +48,11 @@ else if (refInstance != null)
         loading = true;
         error = null;
         refInstance = null;
-        EntityInstanceDto? instance = await EIS.GetInstanceAsync(InstanceId);
-        if (instance == null)
-            error = $"(Instance not found: {InstanceId.ToString().Substring(0, 8)}...)";
+        Result<EntityInstanceDto?> result = await EIS.GetInstanceAsync(InstanceId);
+        if (result.IsSuccess)
+            refInstance = result.Value;
         else
-            refInstance = instance;
+            error = $"({(result.StatusCode != System.Net.HttpStatusCode.NotFound && result.ErrorMessage != null ? result.ErrorMessage : "Instance not found")}{InstanceId.ToString().Substring(0, 8)}...)";
 
         loading = false;
     }

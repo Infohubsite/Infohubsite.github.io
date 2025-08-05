@@ -1,18 +1,20 @@
-﻿using Frontend.Models.DTOs;
+﻿using Frontend.Common;
+using Frontend.Component.User.Instances;
 using Frontend.Extenstions;
-using Microsoft.AspNetCore.WebUtilities;
+using Frontend.Models.DTOs;
 using System.Net;
 using System.Net.Http.Json;
+using static Frontend.Common.Result;
 
 namespace Frontend.Services
 {
     public interface IEntityInstanceService
     {
-        Task<List<EntityInstanceDto>?> GetInstancesAsync(Guid entityId, bool refresh = false);
-        Task<EntityInstanceDto?> GetInstanceAsync(Guid instanceId, bool refresh = false);
-        Task<(bool Success, HttpResponseMessage? Response)> DeleteInstanceAsync(Guid instanceId, bool force = false);
-        Task<(EntityInstanceDto? Instance, HttpResponseMessage? Response)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance);
-        Task<(bool Success, HttpResponseMessage? Response)> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto);
+        Task<Result<List<EntityInstanceDto>?>> GetInstancesAsync(Guid entityId, bool refresh = false);
+        Task<Result<EntityInstanceDto?>> GetInstanceAsync(Guid instanceId, bool refresh = false);
+        Task<Result> DeleteInstanceAsync(Guid instanceId, bool force = false);
+        Task<Result<EntityInstanceDto?>> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance);
+        Task<Result> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto);
     }
 
     public class EntityInstanceService(IHttpClientFactory httpClientFactory, ILogger<EntityInstanceService> logger, INotificationService notifs) : IEntityInstanceService
@@ -21,88 +23,77 @@ namespace Frontend.Services
         private readonly ILogger<EntityInstanceService> _logger = logger;
         private readonly INotificationService _notifs = notifs;
 
-        public async Task<List<EntityInstanceDto>?> GetInstancesAsync(Guid entityId, bool refresh = false)
+        public async Task<Result<List<EntityInstanceDto>?>> GetInstancesAsync(Guid entityId, bool refresh = false)
         {
             try
             {
-                HttpResponseMessage response = await this._httpClient.GetAsync($"/Instances/{entityId}");
-                response.EnsureSuccessStatusCode();
+                HttpResponseMessage response = await this._httpClient.GetAsync($"/Instances/{entityId}"/*?limit={limit}&offset={offset}"*/);
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    this._logger.LogWarning("Tried to fetch entity instances for nonexistant entity definition");
+                    return Fail(response.StatusCode, "Entity not found");
+                }
 
-                return await response.Content.ReadFromJsonAsync<List<EntityInstanceDto>>();
+                return await From<List<EntityInstanceDto>>(response);
             }
             catch (Exception ex)
             {
                 this._logger.LogError(ex, "Could not fetch instances for entity '{EntityId}'", entityId);
                 await this._notifs.Show($"Error while fetching instances for entity '{entityId}' Error: {ex}");
-                return null;
+                return Fail(ex.Message);
             }
         }
-        public async Task<EntityInstanceDto?> GetInstanceAsync(Guid instanceId, bool refresh = false)
+        public async Task<Result<EntityInstanceDto?>> GetInstanceAsync(Guid instanceId, bool refresh = false)
         {
             try
             {
                 HttpResponseMessage response = await _httpClient.GetAsync($"/Instances/Instance/{instanceId}");
-                if (response.StatusCode == HttpStatusCode.NotFound)
-                    return null;
-                response.EnsureSuccessStatusCode();
-
-                return await response.Content.ReadFromJsonAsync<EntityInstanceDto>();
+                return await From<EntityInstanceDto>(response);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Could not fetch instance with ID '{InstanceId}'", instanceId);
                 await _notifs.Show($"Error while fetching instance '{instanceId}'. Error: {ex.Message}");
-                return null;
+                return Fail(ex.Message);
             }
         }
-        public async Task<(bool Success, HttpResponseMessage? Response)> DeleteInstanceAsync(Guid instanceId, bool force = false)
+        public async Task<Result> DeleteInstanceAsync(Guid instanceId, bool force = false)
         {
             try
             {
-                string url = $"/Instances/{instanceId}";
-                if (force)
-                    url = QueryHelpers.AddQueryString(url, "force", "true");
-
-                HttpResponseMessage response = await _httpClient.DeleteAsync(url);
-
-                return (response.IsSuccessStatusCode, response);
+                return await From(await _httpClient.DeleteAsync($"/Instances/{instanceId}{(force ? "?force=true" : "")}"));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Could not delete instance with id {Id}.", instanceId);
                 await _notifs.Show($"Error while deleting instance '{instanceId}'. Error: {ex.Message}");
-                return (false, null);
+                return Fail(ex.Message);
             }
         }
-        public async Task<(EntityInstanceDto? Instance, HttpResponseMessage? Response)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
+        public async Task<Result<EntityInstanceDto?>> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
         {
             try
             {
-                HttpResponseMessage response = await _httpClient.PostAsJsonAsync($"/Instances/{entityId}", newInstance);
-                if (!response.IsSuccessStatusCode)
-                    return (null, response);
-
-                return (await response.Content.ReadFromJsonAsync<EntityInstanceDto>(), null);
+                return await From<EntityInstanceDto>(await _httpClient.PostAsJsonAsync($"/Instances/{entityId}", newInstance));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Could not create instance for entity '{EntityId}'.", entityId);
                 await _notifs.Show($"Error while creating instance for entity '{entityId}'. Error: {ex.Message}");
-                return (null, null);
+                return Fail(ex.Message);
             }
         }
-        public async Task<(bool Success, HttpResponseMessage? Response)> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto)
+        public async Task<Result> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto)
         {
             try
             {
-                HttpResponseMessage response = await _httpClient.PutAsJsonAsync($"/Instances/{instanceId}", updateDto);
-                return (response.IsSuccessStatusCode, response);
+                return await From(await _httpClient.PutAsJsonAsync($"/Instances/{instanceId}", updateDto));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Could not update instance with id '{Id}'.", instanceId);
                 await _notifs.Show($"Error while updating instance '{instanceId}'. Error: {ex.Message}");
-                return (false, null);
+                return Fail(ex.Message);
             }
         }
     }
@@ -112,32 +103,31 @@ namespace Frontend.Services
         private readonly IEntityInstanceService EIS = eis;
         private readonly ICacheService CS = cs;
 
-        public async Task<List<EntityInstanceDto>?> GetInstancesAsync(Guid entityId, bool refresh = false)
+        public async Task<Result<List<EntityInstanceDto>?>> GetInstancesAsync(Guid entityId, bool refresh = false)
         {
             if (!refresh && CS.EntityInstancesCache.TryGetValue(entityId, out List<EntityInstanceDto>? value))
-                return value;
-            List<EntityInstanceDto>? entities = await EIS.GetInstancesAsync(entityId);
-            if (entities != null)
-                CS.EntityInstancesCache[entityId] = entities;
-            return entities;
+                return Success<List<EntityInstanceDto>?>([.. value.OrderBy(i => i.Id)]);
+            Result<List<EntityInstanceDto>?> result = await EIS.GetInstancesAsync(entityId);
+            if (result.Value != null) CS.EntityInstancesCache[entityId] = result.Value;
+            return result;
         }
-        public async Task<EntityInstanceDto?> GetInstanceAsync(Guid instanceId, bool refresh = false)
+        public async Task<Result<EntityInstanceDto?>> GetInstanceAsync(Guid instanceId, bool refresh = false)
         {
             if (!refresh && CS.EntityInstancesCache.TryGetInstance(instanceId, out EntityInstanceDto? instance))
-                return instance;
+                return Success<EntityInstanceDto?>(instance);
 
-            EntityInstanceDto? entity = await EIS.GetInstanceAsync(instanceId);
-            if (entity != null && CS.EntityInstancesCache.TryGetValue(entity.EntityDefinitionId, out List<EntityInstanceDto>? instances))
+            Result<EntityInstanceDto?> result = await EIS.GetInstanceAsync(instanceId);
+            if (result.Value != null && CS.EntityInstancesCache.TryGetValue(result.Value.EntityDefinitionId, out List<EntityInstanceDto>? instances))
             {
-                instances.RemoveAll(i => i.Id == entity.Id);
-                instances.Add(entity);
+                instances.RemoveAll(i => i.Id == result.Value.Id);
+                instances.Add(result.Value);
             }
-            return entity;
+            return result;
         }
-        public async Task<(bool Success, HttpResponseMessage? Response)> DeleteInstanceAsync(Guid instanceId, bool force = false)
+        public async Task<Result> DeleteInstanceAsync(Guid instanceId, bool force = false)
         {
-            (bool Success, HttpResponseMessage? StatusCode) result = await EIS.DeleteInstanceAsync(instanceId, force);
-            if (result.Success)
+            Result result = await EIS.DeleteInstanceAsync(instanceId, force);
+            if (result.IsSuccess)
             {
                 KeyValuePair<Guid, List<EntityInstanceDto>> entry = CS.EntityInstancesCache.FirstOrDefault(kvp => kvp.Value.Any(instance => instance.Id == instanceId));
                 if (entry.Value != null)
@@ -149,20 +139,20 @@ namespace Frontend.Services
             }
             return result;
         }
-        public async Task<(EntityInstanceDto? Instance, HttpResponseMessage? Response)> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
+        public async Task<Result<EntityInstanceDto?>> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
         {
-            (EntityInstanceDto? Instance, HttpResponseMessage? StatusCode) result = await EIS.CreateInstanceAsync(entityId, newInstance);
-            if (result.Instance != null)
+            Result<EntityInstanceDto?> result = await EIS.CreateInstanceAsync(entityId, newInstance);
+            if (result.Value != null)
                 if (CS.EntityInstancesCache.TryGetValue(entityId, out var instanceList))
-                    instanceList.Add(result.Instance);
+                    instanceList.Add(result.Value);
                 else
-                    CS.EntityInstancesCache[entityId] = [result.Instance];
+                    CS.EntityInstancesCache[entityId] = [result.Value];
             return result;
         }
-        public async Task<(bool Success, HttpResponseMessage? Response)> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto)
+        public async Task<Result> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto)
         {
-            (bool Success, HttpResponseMessage? Response) result = await EIS.UpdateInstanceAsync(instanceId, updateDto);
-            if (result.Success)
+            Result result = await EIS.UpdateInstanceAsync(instanceId, updateDto);
+            if (result.IsSuccess)
             {
                 EntityInstanceDto? instance = CS.EntityInstancesCache.Values.SelectMany(l => l).FirstOrDefault(i => i.Id == instanceId);
                 if (instance != null) instance.Data = updateDto.Data.Where(kvp => kvp.Value != null).ToDictionary(kvp => kvp.Key, kvp => kvp.Value!);

@@ -52,11 +52,14 @@ else if (entityDefinitions != null)
                 </MudTd>
             </AuthorizeView>
         </RowTemplate>
+        <PagerContent>
+            <MudTablePager />
+        </PagerContent>
     </MudTable>
 }
 
 @code {
-    private List<EntityDefinitionDto>? entityDefinitions;
+    private SortedSet<EntityDefinitionDto>? entityDefinitions;
     private string? error;
     private bool loading;
 
@@ -66,11 +69,11 @@ else if (entityDefinitions != null)
     {
         error = null;
         loading = true;
-        List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync(refresh);
+        List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync(0, 0, refresh);
         if (entities == null)
             error = "Failed to get entity definitions";
         else
-            entityDefinitions = entities;
+            entityDefinitions = new(entities);
         loading = false;
     }
 

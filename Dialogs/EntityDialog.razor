@@ -76,7 +76,7 @@
     [CascadingParameter]
     IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public List<EntityDefinitionDto> AllEntityDefinitions { get; set; } = [];
+    [Parameter] public SortedSet<EntityDefinitionDto> AllEntityDefinitions { get; set; } = [];
     [Parameter] public EntityDefinitionDto? CurrentEntity { get; set; }
     [Parameter] public string ButtonText { get; set; } = string.Empty;
 
