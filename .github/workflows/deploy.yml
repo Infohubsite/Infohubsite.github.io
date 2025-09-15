@@ -20,6 +20,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0
+          
+      - name: Restore dependencies
+        run: dotnet restore Frontend.csproj
+        env:
+          NUGET_AUTH_Infohubsite_USERNAME: ${{ secrets.NUGET_GITHUB_USERNAME }}
+          NUGET_AUTH_Infohubsite_PASSWORD: ${{ secrets.NUGET_GITHUB_PAT }}
 
       - name: Generate Build Info File
         env:
@@ -31,7 +37,7 @@ jobs:
           echo '}' >> wwwroot/build-info.json
 
       - name: Publish .NET Project
-        run: dotnet publish Frontend.csproj --configuration Release --output build
+        run: dotnet publish Frontend.csproj --configuration Release --output build --no-restore
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
