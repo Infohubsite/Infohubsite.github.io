@@ -20,12 +20,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0
-          
+
       - name: Restore dependencies
         run: dotnet restore Frontend.csproj
         env:
-          NUGET_AUTH_Infohubsite_USERNAME: ${{ secrets.NUGET_GITHUB_USERNAME }}
-          NUGET_AUTH_Infohubsite_PASSWORD: ${{ secrets.NUGET_GITHUB_PAT }}
+          NUGET_AUTH_github_USERNAME: ${{ secrets.NUGET_GITHUB_USERNAME }}
+          NUGET_AUTH_github_PASSWORD: ${{ secrets.NUGET_GITHUB_PAT }}
 
       - name: Generate Build Info File
         env:
@@ -54,3 +54,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        
