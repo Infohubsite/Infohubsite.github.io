@@ -1,6 +1,8 @@
-﻿using Frontend.Models;
+﻿using Frontend.Common;
+using Frontend.HttpClients;
+using Frontend.Models;
+using Frontend.Models.Converted;
 using Microsoft.AspNetCore.Components.Authorization;
-using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -11,10 +13,9 @@ namespace Frontend.Services
         public Task<FormResult> LoginAsync(string username, string password);
         public Task LogoutAsync();
         public Task<bool> CheckAuthenticatedAsync();
-        public Task<string> GetRoleAsync();
     }
 
-    public class CustomAuthenticationStateProvider(IHttpClientFactory httpClientFactory, ILogger<CustomAuthenticationStateProvider> logger, ILocalStorageService localStorage) : AuthenticationStateProvider, IAccountManagement
+    public class CustomAuthenticationStateProvider(DefaultClient client, ILogger<CustomAuthenticationStateProvider> logger, ILocalStorageService localStorage) : AuthenticationStateProvider, IAccountManagement
     {
         private readonly ILogger<CustomAuthenticationStateProvider> _logger = logger;
         private readonly ILocalStorageService _localStorage = localStorage;
@@ -22,19 +23,14 @@ namespace Frontend.Services
         private bool _authenticated = false;
         private readonly ClaimsPrincipal Unauthenticated = new(new ClaimsIdentity());
 
-        private readonly HttpClient _httpClient = httpClientFactory.CreateClient("Default");
-
-        private class LoginResponse
-        {
-            public string Token { get; set; } = string.Empty;
-        }
+        private readonly DefaultClient _client = client;
 
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             _authenticated = false;
             try
             {
-                var token = await _localStorage.GetItemAsync<string>("authToken");
+                string? token = await _localStorage.GetItemAsync("authToken");
 
                 if (string.IsNullOrEmpty(token)) return await NoAuth();
 
@@ -57,20 +53,15 @@ namespace Frontend.Services
 
         public async Task<FormResult> LoginAsync(string username, string password)
         {
-            HttpResponseMessage? response = null;
+            Result<LoginResponse>? response = null;
             try
             {
-                response = await this._httpClient.PostAsJsonAsync(
-                    "/Auth/Login",
-                    new
-                    {
-                        Username = username,
-                        Password = password
-                    });
-                if (response.IsSuccessStatusCode)
+                response = await _client.Login(username, password);
+                if (response.IsSuccess)
                 {
-                    await this._localStorage.SetItemAsync("authToken", ((await response.Content.ReadFromJsonAsync<LoginResponse>()) ?? throw new NullReferenceException("Token response from server could not be converted to LoginRespose object")).Token);
+                    Task task = _localStorage.SetItemAsync("authToken", response.Value.Token);
                     NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+                    await task;
                     return new FormResult { Succeeded = true };
                 }
                 else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -78,44 +69,29 @@ namespace Frontend.Services
             }
             catch (Exception ex)
             {
-                this._logger.LogWarning(ex, "Exception in '{MethodName}'", nameof(LoginAsync));
+                _logger.LogWarning(ex, "Exception in '{MethodName}'", nameof(LoginAsync));
                 return new FormResult
                 {
                     Succeeded = false,
                     ErrorList = [ex.ToString()]
                 };
-                throw;
             }
 
             return new FormResult
             {
                 Succeeded = false,
-                ErrorList = response == null ? ["Invalid server response"] : [response.ToString()]
+                ErrorList = response.Exception == null ? ["Invalid server response"] : [response.Exception.Message]
             };
         }
         public async Task LogoutAsync()
         {
-            await this._localStorage.RemoveItemAsync("authToken");
+            await _localStorage.RemoveItemAsync("authToken");
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
         public async Task<bool> CheckAuthenticatedAsync()
         {
             await GetAuthenticationStateAsync();
-            return this._authenticated;
-        }
-        public async Task<string> GetRoleAsync()
-        {
-            try
-            {
-                HttpResponseMessage result = await this._httpClient.GetAsync("/Auth/Role");
-                return await result.Content.ReadAsStringAsync();
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogWarning(ex, "Exception in '{MethodName}'", nameof(LoginAsync));
-            }
-
-            return string.Empty;
+            return _authenticated;
         }
 
         private async Task<AuthenticationState> NoAuth()

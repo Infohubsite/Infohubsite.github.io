@@ -1,5 +1,4 @@
-﻿@using System.Text.Json
-@inject IEntityInstanceService EIS
+﻿@inject IEntityInstanceService EIS
 
 @switch (DataType)
 {
@@ -17,12 +16,13 @@
     case DataType.Number:
         <MudNumericField
             @ref="_numericField"
-            T="double?"
+            T="double"
             Label="@FieldName"
             Required="Required"
             RequiredError="@($"{FieldName} is required.")"
-            Value="@((double?)Value)"
-            ValueChanged="@(async (double? val) => await OnValueChanged(val))"
+            Value="@((double?)Value == null ? 0 : (double)Value)"
+            ValueChanged="@(async (double val) => await OnValueChanged(val))"
+            Validation="@((double? v) => v == null && Required ? new[] { $"{FieldName} is required." } : Enumerable.Empty<string>())"
             @attributes="AdditionalAttributes" />
         break;
     case DataType.Date:
@@ -59,7 +59,7 @@
     case DataType.EntityReference:
         <MudAutocomplete
             @ref="_autocomplete"
-            T="EntityInstanceDto"
+            T="EntityInstance"
             Label="@FieldName"
             Required="Required"
             RequiredError="@($"{FieldName} is required.")"
@@ -69,6 +69,44 @@
             ToStringFunc="@(instance => instance == null ? "" : GetInstanceDisplayName(instance))"
             Clearable="!Required"
             @attributes="AdditionalAttributes" />
+        break;
+    case DataType.File:
+        <div class="d-flex align-center">
+            <MudFileUpload @ref="_fileUpload" T="IBrowserFile" Required="Required" FilesChanged="@(async (val) => await OnValueChanged(val))" AppendMultipleFiles="false" Class="d-flex">
+                <ActivatorContent>
+                    <MudButton HtmlTag="label" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload">
+                        @FieldName
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+
+            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                @if (Value is IBrowserFile file)
+                {
+                    <MudText Class="ml-4"><strong>Selected:</strong> @file.Name</MudText>
+                }
+                else if (Value is string name)
+                {
+                    <MudText Class="ml-4"><strong>Selected:</strong> @name</MudText>
+                }
+                else
+                {
+                    <MudText Class="ml-4">No file selected</MudText>
+                }
+            </div>
+
+            <MudSpacer />
+
+            @if (!Required && Value != null && !string.IsNullOrEmpty(Value.ToString()))
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Clear" title="Clear" OnClick="@(async () => await OnValueChanged(null))" Class="ml-2" />
+            }
+
+            @if (_originalFileValue != null && ((Value is string s && !string.Equals(_originalFileValue, s)) || (Value is IBrowserFile f && !string.Equals(_originalFileValue, f.Name)) || !string.Equals(_originalFileValue, Value?.ToString())))
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Undo" title="Undo" OnClick="@(async () => await OnValueChanged(_originalFileValue))" Class="ml-2" />
+            }
+        </div>
         break;
 }
 
@@ -81,13 +119,16 @@
     [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object> AdditionalAttributes { get; set; } = [];
     [Parameter] public EventCallback<object?> ValueChanged { get; set; }
 
-    private EntityInstanceDto? selectedInstance;
+    private EntityInstance? selectedInstance;
 
     private MudTextField<string>? _textField;
-    private MudNumericField<double?>? _numericField;
+    private MudNumericField<double>? _numericField;
     private MudDatePicker? _datePicker;
     private MudSelect<bool?>? _selectBool;
-    private MudAutocomplete<EntityInstanceDto>? _autocomplete;
+    private MudAutocomplete<EntityInstance>? _autocomplete;
+    private MudFileUpload<IBrowserFile>? _fileUpload;
+
+    private string? _originalFileValue;
 
     public async Task Clear()
     {
@@ -112,11 +153,17 @@
                 await OnInstanceSelected(null);
                 await _autocomplete.ResetAsync();
                 break;
+            case DataType.File when _fileUpload != null:
+                await _fileUpload.ResetAsync();
+                await OnValueChanged(null);
+                break;
         }
     }
 
-    protected override async Task OnParametersSetAsync()
+    protected override async Task OnInitializedAsync()
     {
+        if (DataType == DataType.File)
+            _originalFileValue = Value == null ? null : new string(Value is string s ? s : ((Value is IBrowserFile f) ? f.Name : Value.ToString()));
         if (DataType == DataType.EntityReference && Value is Guid instanceId && (selectedInstance == null || selectedInstance.Id != instanceId))
             selectedInstance = (await EIS.GetInstanceAsync(instanceId)).Value;
     }
@@ -126,37 +173,43 @@
         Value = (value is string s && string.IsNullOrWhiteSpace(s)) ? null : value;
         await ValueChanged.InvokeAsync(Value);
     }
-
-    private async Task OnInstanceSelected(EntityInstanceDto? instance)
+    private async Task OnInstanceSelected(EntityInstance? instance)
     {
         selectedInstance = instance;
         await OnValueChanged(instance?.Id);
     }
-
-    private async Task<IEnumerable<EntityInstanceDto>> SearchInstances(string searchTerm, CancellationToken token)
+    private async Task<IEnumerable<EntityInstance>> SearchInstances(string search, CancellationToken token)
     {
-        if (!ReferenceTargetEntityDefinitionId.HasValue)
-            return Enumerable.Empty<EntityInstanceDto>();
+        if (!ReferenceTargetEntityDefinitionId.HasValue) return Enumerable.Empty<EntityInstance>();
 
-        List<EntityInstanceDto> instances = (await EIS.GetInstancesAsync(ReferenceTargetEntityDefinitionId.Value)).Value ?? [];
-        if (string.IsNullOrWhiteSpace(searchTerm))
-            return instances;
-
-        return instances
-            .Where(i => GetInstanceDisplayName(i).Contains(searchTerm, StringComparison.OrdinalIgnoreCase));
+        List<EntityInstance> instances = (await EIS.GetInstancesAsync(ReferenceTargetEntityDefinitionId.Value)).Value ?? [];
+        return InstanceUtils.FilterInstances(instances, search);
     }
-
-    private string GetInstanceDisplayName(EntityInstanceDto instance)
+    private string GetInstanceDisplayName(EntityInstance instance)
     {
         if (instance.Data == null) return instance.Id.ToString();
         if (instance.Data.Count == 0) return "(no data)";
-        return string.Join(" | ", instance.Data.Select(kvp => $"{kvp.Key}: {kvp.Value}"));
+
+        string? displayNameKey = instance.Data.Keys.FirstOrDefault(k => k.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                          ?? instance.Data.Keys.FirstOrDefault(k => k.Equals("Title", StringComparison.OrdinalIgnoreCase));
+
+        if (displayNameKey != null && instance.Data.TryGetValue(displayNameKey, out var displayNameValue) && displayNameValue != null)
+            return InstanceUtils.FormatValue(displayNameValue);
+
+        string? displayName = instance.Data
+            .Where(kvp => kvp.Value is JsonElement je && je.ValueKind == JsonValueKind.String && !Guid.TryParse(je.GetString(), out _))
+            .Select(kvp => kvp.Value?.ToString())
+            .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+        if (!string.IsNullOrWhiteSpace(displayName)) return displayName;
+
+        string? concatenatedProperties = string.Join(" | ", instance.Data
+            .Where(kvp => kvp.Value != null && !(kvp.Value is JsonElement je && je.ValueKind == JsonValueKind.Null))
+            .Take(3)
+            .Select(kvp => $"{kvp.Key}: {InstanceUtils.FormatValue(kvp.Value)}"));
+
+        return !string.IsNullOrWhiteSpace(concatenatedProperties) ? concatenatedProperties : instance.Id.ToString();
     }
 
-    private bool GetBoolValue()
-    {
-        if (Value is bool boolValue)
-            return boolValue;
-        return false;
-    }
+    private bool GetBoolValue() => Value is bool boolv ? boolv : false;
 }

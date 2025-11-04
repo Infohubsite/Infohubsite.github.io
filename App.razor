@@ -1,5 +1,5 @@
 ﻿@inject IJSRuntime JSR
-@inject IHttpClientFactory HCF
+@inject WakeupClient WC
 @inject INotificationService NS
 
 <Router AppAssembly="@typeof(App).Assembly">
@@ -26,8 +26,7 @@
 
         try
         {
-            using HttpClient client = HCF.CreateClient("WakeupClient");
-            using HttpResponseMessage responseMessage = await client.GetAsync("/Healthz");
+            using HttpResponseMessage responseMessage = await WC.Wakeup();
             responseMessage.EnsureSuccessStatusCode();
         }
         catch (Exception ex)

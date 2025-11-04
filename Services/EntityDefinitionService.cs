@@ -1,97 +1,30 @@
-﻿using Frontend.Models.DTOs;
-using System.Net.Http.Json;
+﻿using Frontend.Common;
+using Frontend.Extenstions;
+using Frontend.HttpClients;
+using Frontend.Models.Converted;
+using Frontend.Models.Interactive;
+using Shared.DTO.Client;
 
 namespace Frontend.Services
 {
     public interface IEntityDefinitionService
     {
-        Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(int limit = 20, int offset = 0, bool reload = false);
-        Task<EntityDefinitionDto?> GetEntityDefinitionAsync(Guid entityId, bool reload = false);
-        Task<EntityDefinitionDto?> CreateEntityAsync(CreateEntityWithFieldsDto newEntity);
-        Task<bool> DeleteEntityAsync(Guid id);
-        Task<bool> UpdateEntityAsync(Guid id, string newName);
+        Task<Result<List<EntityDefinition>>> GetEntityDefinitionsAsync(bool reload = false);
+        Task<Result<EntityDefinition>> GetEntityDefinitionAsync(Guid entityId, bool reload = false);
+        Task<Result<EntityDefinition>> CreateEntityAsync(EntityDefinitionI newEntity);
+        Task<Result> DeleteEntityAsync(Guid entityId);
+        Task<Result> UpdateEntityAsync(Guid entityId, EntityDefinitionI updateEntity);
     }
 
-    public class EntityDefinitionService(IHttpClientFactory httpClientFactory, ILogger<EntityDefinitionService> logger, INotificationService notificationService) : IEntityDefinitionService
+    public class EntityDefinitionService(DefaultClient client) : IEntityDefinitionService
     {
-        private readonly HttpClient _httpClient = httpClientFactory.CreateClient("Default");
-        private readonly ILogger<EntityDefinitionService> _logger = logger;
-        private readonly INotificationService _notificationService = notificationService;
+        private readonly DefaultClient Client = client;
 
-        public async Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(int limit = 20, int offset = 0, bool reload = false)
-        {
-            try
-            {
-                HttpResponseMessage response = await this._httpClient.GetAsync($"/EntityDefinitions?limit={limit}&offset={offset}");
-                response.EnsureSuccessStatusCode();
-                return await response.Content.ReadFromJsonAsync<List<EntityDefinitionDto>>();
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Could not fetch entity definitions");
-                await this._notificationService.Show($"Error while getting entity definitions: {ex}");
-                return null;
-            }
-        }
-        public async Task<EntityDefinitionDto?> GetEntityDefinitionAsync(Guid entityId, bool reload = false)
-        {
-            try
-            {
-                HttpResponseMessage response = await this._httpClient.GetAsync($"/EntityDefinitions/{entityId}");
-                response.EnsureSuccessStatusCode();
-                return await response.Content.ReadFromJsonAsync<EntityDefinitionDto>();
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Could not fetch entity definition");
-                await this._notificationService.Show($"Error while getting entity definition: {ex}");
-                return null;
-            }
-        }
-        public async Task<EntityDefinitionDto?> CreateEntityAsync(CreateEntityWithFieldsDto newEntity)
-        {
-            try
-            {
-                HttpResponseMessage response = await this._httpClient.PostAsJsonAsync("/EntityDefinitions", newEntity);
-                response.EnsureSuccessStatusCode();
-
-                return await response.Content.ReadFromJsonAsync<EntityDefinitionDto>();
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Could not create entity definition '{Name}'", newEntity.Name);
-                await this._notificationService.Show($"Error while creating new entity definition: {ex}");
-                return null;
-            }
-        }
-        public async Task<bool> DeleteEntityAsync(Guid id)
-        {
-            try
-            {
-                HttpResponseMessage response = await this._httpClient.DeleteAsync($"/EntityDefinitions/{id}");
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Could not delete entity definition with Id '{Id}'", id);
-                await this._notificationService.Show($"Error while deleting entity with Id '{id}': {ex}");
-                return false;
-            }
-        }
-        public async Task<bool> UpdateEntityAsync(Guid id, string newName)
-        {
-            try
-            {
-                HttpResponseMessage response = await this._httpClient.PutAsJsonAsync($"/EntityDefinitions/{id}", new { name = newName });
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                this._logger.LogError(ex, "Could not update entity definition with Id '{Id}'", id);
-                await this._notificationService.Show($"Error while updating entity with Id '{id}': {ex}");
-                return false;
-            }
-        }
+        public async Task<Result<List<EntityDefinition>>> GetEntityDefinitionsAsync(bool _) => await Client.GetEntityDefinitions();
+        public async Task<Result<EntityDefinition>> GetEntityDefinitionAsync(Guid entityId, bool _) => await Client.GetEntityDefinition(entityId);
+        public async Task<Result<EntityDefinition>> CreateEntityAsync(EntityDefinitionI newEntity) => await Client.CreateEntityDefinition(newEntity.ConvertTo<CreateEntityDefinitionDto, EntityDefinitionI>());
+        public async Task<Result> DeleteEntityAsync(Guid entityId) => await Client.DeleteEntityDefinition(entityId);
+        public async Task<Result> UpdateEntityAsync(Guid entityId, EntityDefinitionI updateEntity) => await Client.UpdateEntityDefinition(entityId, updateEntity.ConvertTo<UpdateEntityDefinitionDto, EntityDefinitionI>());
     }
 
     public class CacheEntityDefinitionService(IEntityDefinitionService eds, ICacheService cs) : IEntityDefinitionService
@@ -99,48 +32,46 @@ namespace Frontend.Services
         private readonly IEntityDefinitionService EDS = eds;
         private readonly ICacheService CS = cs;
 
-        public async Task<List<EntityDefinitionDto>?> GetEntityDefinitionsAsync(int limit = 20, int offset = 0, bool reload = false)
+        public async Task<Result<List<EntityDefinition>>> GetEntityDefinitionsAsync(bool reload = false)
         {
             if (!reload && CS.EntityDefinitionCache.Count > 1)
-                return [.. CS.EntityDefinitionCache.Values.OrderBy(i => i.Name)];
-            List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync(limit, offset);
-            if (entities != null)
-                CS.EntityDefinitionCache = entities.ToDictionary(e => e.Id, e => e);
-            return entities;
+                return Result<List<EntityDefinition>>.Success([.. CS.EntityDefinitionCache.Values.OrderBy(i => i.Name)]);
+            Result<List<EntityDefinition>> result = await EDS.GetEntityDefinitionsAsync();
+            if (result.IsSuccess)
+                CS.EntityDefinitionCache = result.Value.ToDictionary(e => e.Id, e => e);
+            return result;
         }
-        public async Task<EntityDefinitionDto?> GetEntityDefinitionAsync(Guid entityId, bool reload = false)
+        public async Task<Result<EntityDefinition>> GetEntityDefinitionAsync(Guid entityId, bool reload = false)
         {
-            if (!reload && CS.EntityDefinitionCache.TryGetValue(entityId, out EntityDefinitionDto? value))
-                return value;
-            EntityDefinitionDto? entity = await EDS.GetEntityDefinitionAsync(entityId);
-            if (entity != null)
-                CS.EntityDefinitionCache[entityId] = entity;
-            return entity;
+            if (!reload && CS.EntityDefinitionCache.TryGetValue(entityId, out EntityDefinition? value))
+                return Result<EntityDefinition>.Success(value);
+            Result<EntityDefinition> result = await EDS.GetEntityDefinitionAsync(entityId);
+            if (result.IsSuccess)
+                CS.EntityDefinitionCache[entityId] = result.Value;
+            return result;
         }
-        public async Task<EntityDefinitionDto?> CreateEntityAsync(CreateEntityWithFieldsDto newEntity)
+        public async Task<Result<EntityDefinition>> CreateEntityAsync(EntityDefinitionI newEntity)
         {
-            EntityDefinitionDto? entity = await EDS.CreateEntityAsync(newEntity);
-            if (entity != null)
-                CS.EntityDefinitionCache[entity.Id] = entity;
-            return entity;
+            Result<EntityDefinition> result = await EDS.CreateEntityAsync(newEntity);
+            if (result.IsSuccess)
+                CS.EntityDefinitionCache[result.Value.Id] = result.Value;
+            return result;
         }
-        public async Task<bool> DeleteEntityAsync(Guid id)
+        public async Task<Result> DeleteEntityAsync(Guid entityId)
         {
-            bool success = await EDS.DeleteEntityAsync(id);
-            if (success)
-                CS.EntityDefinitionCache.Remove(id);
-            return success;
+            Result result = await EDS.DeleteEntityAsync(entityId);
+            if (result.IsSuccess)
+                CS.EntityDefinitionCache.Remove(entityId);
+            return result;
         }
-        public async Task<bool> UpdateEntityAsync(Guid id, string newName)
+        public async Task<Result> UpdateEntityAsync(Guid entityId, EntityDefinitionI updateEntity)
         {
-            bool success = await EDS.UpdateEntityAsync(id, newName);
-            if (success)
-                if (CS.EntityDefinitionCache.TryGetValue(id, out EntityDefinitionDto? entity))
-                    entity.Name = newName;
-                else
-                    await GetEntityDefinitionAsync(id, true);
+            Result result = await EDS.UpdateEntityAsync(entityId, updateEntity);
+            if (result.IsSuccess)
+                if (CS.EntityDefinitionCache.TryGetValue(entityId, out EntityDefinition? entity)) entity.Name = updateEntity.Name;
+                else await GetEntityDefinitionAsync(entityId, true);
 
-            return success;
+            return result;
         }
     }
 }

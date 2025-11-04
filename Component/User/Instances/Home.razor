@@ -18,7 +18,7 @@
 }
 else if (entityDefinitions != null)
 {
-    <MudTable Items="entityDefinitions" Hover="true" Bordered="true" OnRowClick="(TableRowClickEventArgs<EntityDefinitionDto> args) => OpenInstance(args)" Breakpoint="Breakpoint.None" Style="white-space: nowrap;">
+    <MudTable Items="entityDefinitions" Hover="true" Bordered="true" OnRowClick="(TableRowClickEventArgs<EntityDefinition> args) => OpenInstance(args)" Breakpoint="Breakpoint.None" Style="white-space: nowrap;">
         <ToolBarContent>
             <MudIconButton OnClick="() => Load(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
             <AuthorizeView Roles="admin">
@@ -59,7 +59,7 @@ else if (entityDefinitions != null)
 }
 
 @code {
-    private SortedSet<EntityDefinitionDto>? entityDefinitions;
+    private SortedSet<EntityDefinition>? entityDefinitions;
     private string? error;
     private bool loading;
 
@@ -69,15 +69,15 @@ else if (entityDefinitions != null)
     {
         error = null;
         loading = true;
-        List<EntityDefinitionDto>? entities = await EDS.GetEntityDefinitionsAsync(0, 0, refresh);
-        if (entities == null)
+        Result<List<EntityDefinition>> entities = await EDS.GetEntityDefinitionsAsync(refresh);
+        if (!entities.IsSuccess)
             error = "Failed to get entity definitions";
         else
-            entityDefinitions = new(entities);
+            entityDefinitions = new(entities.Value);
         loading = false;
     }
 
-    private void OpenInstance(TableRowClickEventArgs<EntityDefinitionDto> args)
+    private void OpenInstance(TableRowClickEventArgs<EntityDefinition> args)
     {
         if (args.Item == null)
             return;
@@ -93,7 +93,7 @@ else if (entityDefinitions != null)
     }
 
     // ADMIN //
-    private async Task OpenEntityDialog(EntityDefinitionDto? context = null)
+    private async Task OpenEntityDialog(EntityDefinition? context = null)
     {
         DialogParameters<EntityDialog> parameters = new()
         {
@@ -115,11 +115,11 @@ else if (entityDefinitions != null)
 
         if (context == null)
         {
-            EntityDefinitionDto? newEntity = result.Data as EntityDefinitionDto;
-            if (newEntity == null)
+            Result<EntityDefinition>? newEntity = result.Data as Result<EntityDefinition>;
+            if (newEntity == null || !newEntity.IsSuccess)
                 return;
 
-            entityDefinitions?.Add(newEntity);
+            entityDefinitions?.Add(newEntity.Value);
         }
         else
         {
@@ -130,7 +130,7 @@ else if (entityDefinitions != null)
             context.Name = newName;
         }
     }
-    private async Task OpenDeleteDialog(EntityDefinitionDto context)
+    private async Task OpenDeleteDialog(EntityDefinition context)
     {
         DialogOptions options = new()
         {
@@ -151,7 +151,7 @@ else if (entityDefinitions != null)
             { x => x.ButtonText, "Delete" },
             { x => x.ButtonColor, Color.Error },
             { x => x.ButtonStartIcon, Icons.Material.Filled.DeleteForever },
-            { x => x.OnSubmit, async () => await EDS.DeleteEntityAsync(context.Id) },
+            { x => x.OnSubmit, async () => (await EDS.DeleteEntityAsync(context.Id)).IsSuccess },
             { x => x.ErrorMessage, "Failed to delete the entity definition. Maybe it is in use?"}
         };
 
@@ -162,7 +162,7 @@ else if (entityDefinitions != null)
 
         if (result.Data is bool && (bool)result.Data)
         {
-            this.entityDefinitions?.Remove(context);
+            entityDefinitions?.Remove(context);
             await NS.Show($"Successfully deleted the '{context.Name}' entity", Severity.Success);
         }
     }

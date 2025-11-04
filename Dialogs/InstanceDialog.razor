@@ -1,9 +1,7 @@
-﻿@using Frontend.Models.DTOs
-@using Frontend.Models.Enums
-@using System.Text.Json
-@inject IEntityDefinitionService EDS
+﻿@inject IEntityDefinitionService EDS
 @inject IEntityInstanceService EIS
 @inject INotificationService NS
+@inject IFileService FS
 
 <MudDialog>
     <DialogContent>
@@ -19,7 +17,7 @@
             }
 
             <MudForm @ref="form" @bind-IsValid="valid" Class="mt-4">
-                @foreach (FieldDefinitionDto field in EntityDefinition.Fields)
+                @foreach (FieldDefinition field in EntityDefinition.Fields)
                 {
                     @if (field.IsList)
                     {
@@ -47,29 +45,29 @@
     [Parameter] public Guid? CurrentInstance { get; set; }
     [Parameter] public string ButtonText { get; set; } = string.Empty;
 
-    private EntityDefinitionDto? EntityDefinition;
+    private EntityDefinition? EntityDefinition;
     private MudForm form = default!;
-    private CreateInstanceDto model = new();
+    private EntityInstanceI model = new();
     private string? error;
     private bool valid;
 
     protected override async Task OnInitializedAsync()
     {
-        EntityDefinition = await EDS.GetEntityDefinitionAsync(EntityDefinitionId);
+        EntityDefinition = (await EDS.GetEntityDefinitionAsync(EntityDefinitionId)).Value;
         if (EntityDefinition == null)
             error = "Could not load the entity definition. Cannot create instance.";
         else if (CurrentInstance == null)
-            foreach (FieldDefinitionDto field in EntityDefinition.Fields)
+            foreach (FieldDefinition field in EntityDefinition.Fields)
                 model.Data[field.Name] = field.IsList ? new List<object>() : GetDefaultValue(field.DataType, field.IsRequired);
         else
         {
-            Result<EntityInstanceDto?> result = await EIS.GetInstanceAsync((Guid)CurrentInstance);
+            Result<EntityInstance> result = await EIS.GetInstanceAsync(CurrentInstance.Value);
             if (!result.IsSuccess || result.Value == null)
-                error = result.ErrorMessage == null ? "Could not load the instance to edit." : result.ErrorMessage;
+                error = result.Exception == null ? "Could not load the instance to edit." : result.Exception.Message;
             else
             {
                 model.Data = result.Value.Data.ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
-                foreach (FieldDefinitionDto field in EntityDefinition.Fields)
+                foreach (FieldDefinition field in EntityDefinition.Fields)
                     if (model.Data.TryGetValue(field.Name, out var value) && value is JsonElement je)
                         model.Data[field.Name] = ConvertJsonElement(je, field.DataType, field.IsList);
                     else if (!model.Data.ContainsKey(field.Name))
@@ -96,6 +94,7 @@
             DataType.Date => je.TryGetDateTime(out var dt) ? dt : (DateTime?)null,
             DataType.Boolean => je.GetBoolean(),
             DataType.EntityReference => je.TryGetGuid(out var g) ? g : (Guid?)null,
+            DataType.File => je.ToString(),
             _ => null
         };
     }
@@ -106,6 +105,7 @@
         DataType.Date => (DateTime?)null,
         DataType.EntityReference => (Guid?)null,
         DataType.Text => string.Empty,
+        DataType.File => null,
         _ => null
     };
     private List<object> GetListValue(string fieldName)
@@ -115,44 +115,91 @@
         model.Data[fieldName] = new List<object>();
         return (List<object>)model.Data[fieldName]!;
     }
-
     private async Task Submit()
     {
         await form.Validate();
         if (!CheckValid()) return;
 
         Dictionary<string, object?> payload = new(model.Data);
+        FS.ClearCache();
 
-        foreach (FieldDefinitionDto field in EntityDefinition!.Fields.Where(f => !f.IsRequired))
+        List<(int cacheIndex, string fieldName, int? listPosition)> uploads = [];
+
+        foreach (FieldDefinition field in EntityDefinition!/*not null because CheckValid function checks that*/.Fields.Where(f => f.DataType == DataType.File))
+        {
+            if (!payload.TryGetValue(field.Name, out object? value) || value == null) continue;
+
+            if (field.IsList)
+            {
+                if (value is List<object> fileList)
+                    for (int i = 0; i < fileList.Count; i++)
+                        if (fileList[i] is IBrowserFile browserFile)
+                            uploads.Add((FS.Cache(browserFile), field.Name, i));
+            }
+            else if (value is IBrowserFile file)
+                uploads.Add((FS.Cache(file), field.Name, null));
+        }
+
+        if (uploads.Any())
+        {
+            Task<IEnumerable<string?>> uploadTask = FS.Upload();
+            // TODO: somehow not block and display file uploading progress
+            /*temp*/ var uploadResults = await uploadTask;
+
+
+            string?[] resultsArr = [.. uploadResults];
+            Dictionary<int, string?> results = uploads.Select((map, i) => (map.cacheIndex, resultsArr[i])).ToDictionary(t => t.cacheIndex, t => t.Item2);
+            foreach ((int cacheIndex, string fieldName, int? listPosition) entry in uploads)
+                if (results.TryGetValue(entry.cacheIndex, out string? newFileName) && newFileName != null)
+                    if (entry.listPosition == null)
+                        payload[entry.fieldName] = newFileName;
+                    else if (payload[entry.fieldName] is List<object> fileList)
+                        fileList[entry.listPosition.Value] = newFileName;
+        }
+
+        foreach (FieldDefinition field in EntityDefinition.Fields)
         {
             if (!payload.TryGetValue(field.Name, out object? value)) continue;
 
-            if (value == null || ((field.IsList && value is List<object> list && list.Count == 0) || (field.DataType == DataType.Text && value is string str && string.IsNullOrWhiteSpace(str))))
-                payload.Remove(field.Name);
+            if (field.DataType == DataType.File)
+                if (field.IsList && value is List<object> objectList)
+                    payload[field.Name] = objectList.OfType<string>().ToList();
+                else if (value is not string && value != null)
+                    payload[field.Name] = value.ToString() + "*[AUTOMATICALLY CONVERTED TO STRING]"; // don't forget, when fetching files to remove anything after the star sign
+
+            if (!field.IsRequired)
+                if (value == null)
+                    payload.Remove(field.Name);
+                else if (value is System.Collections.IList list && list.Count == 0)
+                    payload.Remove(field.Name);
+                else if (value is string str && string.IsNullOrWhiteSpace(str))
+                    payload.Remove(field.Name);
         }
 
         if (CurrentInstance == null)
         {
-            Result<EntityInstanceDto?> result = await EIS.CreateInstanceAsync(EntityDefinitionId, new() { Data = payload });
+            Task<Result<EntityInstance>> resultTask = EIS.CreateInstanceAsync(EntityDefinitionId, new() { Data = payload });
+            // TODO: don't block, but signal ongoing operation
+            /*temp*/ var result = await resultTask;
 
-            if (result.Value != null)
+            if (result.IsSuccess)
             {
                 MudDialog.Close(DialogResult.Ok(result.Value));
                 return;
             }
-
             error = GetErrorMessage(result, "create");
         }
         else
         {
-            Result result = await EIS.UpdateInstanceAsync((Guid)CurrentInstance, new() { Data = payload });
+            Task<Result> resultTask = EIS.UpdateInstanceAsync(CurrentInstance.Value, new() { Data = payload });
+            // TODO: don't block, but signal ongoing operation
+            /*temp*/ var result = await resultTask;
 
             if (result.IsSuccess)
             {
-                MudDialog.Close(DialogResult.Ok(await EIS.GetInstanceAsync((Guid)CurrentInstance)));
+                MudDialog.Close(DialogResult.Ok((await EIS.GetInstanceAsync(CurrentInstance.Value)).Value));
                 return;
             }
-
             error = GetErrorMessage(result, "update");
         }
     }
@@ -162,18 +209,17 @@
         if (result.StatusCode == null)
             return $"Failed to {action} instance. No response from server.";
         else
-            return $"Failed to {action} instance. {result.ErrorMessage}";
+            return $"Failed to {action} instance. {result.Exception?.Message}";
     }
     private bool CheckValid()
     {
         if (!valid) return false;
         if (EntityDefinition == null) return false;
 
-        foreach (FieldDefinitionDto field in EntityDefinition.Fields.Where(f => f.IsList && f.IsRequired))
+        foreach (FieldDefinition field in EntityDefinition.Fields.Where(f => f.IsList && f.IsRequired))
             if (model.Data.TryGetValue(field.Name, out object? value) && value is List<object> list && list.Count == 0)
                 return false;
         return true;
     }
     private void Cancel() => MudDialog.Cancel();
-    private class Rsp { public string message { get; set; } = string.Empty; }
 }

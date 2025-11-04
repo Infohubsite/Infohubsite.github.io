@@ -1,5 +1,5 @@
 ﻿@page "/BuildInfo"
-@inject IHttpClientFactory CF
+@inject OriginClient OC
 
 <h3>Build Information</h3>
 
@@ -18,6 +18,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        buildInfo = await CF.CreateClient("OriginClient").GetFromJsonAsync<Frontend.Models.BuildInfo>($"build-info.json?v={DateTime.UtcNow.Ticks}");
+        buildInfo = await OC.GetBuildInfo();
     }
 }

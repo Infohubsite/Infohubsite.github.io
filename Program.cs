@@ -1,3 +1,4 @@
+using Frontend.HttpClients;
 using Frontend.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
@@ -6,7 +7,6 @@ using MudBlazor;
 using MudBlazor.Services;
 using Polly;
 using Polly.Retry;
-using System.Net; // Required for HttpStatusCode
 
 namespace Frontend
 {
@@ -14,13 +14,11 @@ namespace Frontend
     {
         public static async Task Main(string[] args)
         {
-
-            var builder = WebAssemblyHostBuilder.CreateDefault(args);
+            WebAssemblyHostBuilder builder = WebAssemblyHostBuilder.CreateDefault(args);
 
             builder.RootComponents.Add<App>("#app");
             builder.RootComponents.Add<HeadOutlet>("head::after");
 
-            builder.Services.AddTransient<GlobalExceptionHandler>();
             builder.Services.AddTransient<AuthenticationHeaderHandler>();
             builder.Services.AddScoped<EntityDefinitionService>();
             builder.Services.AddScoped<EntityInstanceService>();
@@ -30,25 +28,24 @@ namespace Frontend
             builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();
             builder.Services.AddScoped<IEntityDefinitionService, CacheEntityDefinitionService>(provider => new CacheEntityDefinitionService(provider.GetRequiredService<EntityDefinitionService>(), provider.GetRequiredService<ICacheService>()));
             builder.Services.AddScoped<IEntityInstanceService, CacheEntityInstanceService>(provider => new CacheEntityInstanceService(provider.GetRequiredService<EntityInstanceService>(), provider.GetRequiredService<ICacheService>()));
+            builder.Services.AddScoped<IFileService, FileService>();
 
-            builder.Services.AddHttpClient("Default", client =>
+            builder.Services.AddHttpClient<DefaultClient>(client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException("Backend origin URL ('Origins:Backend') is not configured."));
             })
                 .AddHttpMessageHandler<AuthenticationHeaderHandler>()
                 .AddPolicyHandler(GetRetryPolicy());
-                //.AddHttpMessageHandler<GlobalExceptionHandler>();
-            builder.Services.AddHttpClient("OriginClient", client =>
+            builder.Services.AddHttpClient<OriginClient>(client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Frontend"] ?? throw new InvalidOperationException("Frontend origin URL ('Origins:Frontend') is not configured."));
             });
-            builder.Services.AddHttpClient("WakeupClient", client =>
+            builder.Services.AddHttpClient<OutboundClient>();
+            builder.Services.AddHttpClient<WakeupClient>(client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException("Backend origin URL ('Origins:Backend') is not configured."));
             })
                 .AddPolicyHandler(GetRetryPolicy(2));
-
-            builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Default"));
 
             builder.Services.AddAuthorizationCore();
             builder.Services.AddCascadingAuthenticationState();
@@ -72,20 +69,12 @@ namespace Frontend
             await builder.Build().RunAsync();
         }
 
-        internal static AsyncRetryPolicy<HttpResponseMessage> GetRetryPolicy(int times = 3)
-        {
-            return Policy<HttpResponseMessage>
-                .Handle<HttpRequestException>(ex =>
-                    ex.StatusCode == null || ex.StatusCode >= HttpStatusCode.InternalServerError
-                )
-                .WaitAndRetryAsync(
-                    times,
-                    retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
-                    onRetry: (outcome, timespan, retryAttempt, context) =>
-                    {
-                        Console.WriteLine($"[Polly] Network error detected. Delaying for {timespan.TotalSeconds}s before retry {retryAttempt}/{times}. Reason: {outcome.Exception.Message}");
-                    }
-                );
-        }
+        internal static AsyncRetryPolicy<HttpResponseMessage> GetRetryPolicy(int times = 3) => Policy<HttpResponseMessage>
+            .Handle<HttpRequestException>(ex => ex.StatusCode == null || ex.StatusCode >= System.Net.HttpStatusCode.InternalServerError)
+            .WaitAndRetryAsync(
+                times,
+                retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                onRetry: (outcome, timespan, retryAttempt, context) => Console.WriteLine($"[Polly] Network error detected. Delaying for {timespan.TotalSeconds}s before retry {retryAttempt}/{times}. Reason: {outcome.Exception.Message}")
+            );
     }
 }

@@ -85,7 +85,7 @@
     {
         NS.OnShow += ShowSnackbar;
 
-        var storedTheme = await LS.GetItemAsync<string>("theme");
+        string? storedTheme = await LS.GetItemAsync("theme");
         darkMode = storedTheme != "light";
     }
 
@@ -99,8 +99,8 @@
     private async Task ToggleThemeAsync()
     {
         darkMode = !darkMode;
-        var newTheme = darkMode ? "dark" : "light";
-        await LS.SetItemAsync<string>("theme", newTheme);
+        string? newTheme = darkMode ? "dark" : "light";
+        await LS.SetItemAsync("theme", newTheme);
     }
 
     private async Task LogoutAsync() =>

@@ -1,6 +1,4 @@
-﻿@using Frontend.Models.DTOs
-@using Frontend.Models.Enums
-@inject IEntityDefinitionService EDS
+﻿@inject IEntityDefinitionService EDS
 @inject INotificationService NS
 
 <MudDialog>
@@ -15,7 +13,7 @@
 
             <MudText Typo="Typo.h6" Class="mt-6 mb-2">Fields</MudText>
 
-            @foreach (CreateFieldDefinitionDto field in model.Fields)
+            @foreach (FieldDefinitionI field in model.Fields)
             {
                 <MudPaper Outlined="true" Class="d-flex align-center pa-2 mb-2">
                     <MudText Style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -54,7 +52,7 @@
                     @if (newField.DataType == DataType.EntityReference)
                     {
                         <MudSelect @bind-Value="newField.ReferenceTargetEntityDefinitionId" Label="Reference Target" Required="true" RequiredError="Target is required for entity reference">
-                            @foreach (var entityDef in AllEntityDefinitions)
+                            @foreach (EntityDefinition entityDef in AllEntityDefinitions)
                             {
                                 <MudSelectItem Value="@((Guid?)entityDef.Id)">@entityDef.Name</MudSelectItem>
                             }
@@ -76,8 +74,8 @@
     [CascadingParameter]
     IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public SortedSet<EntityDefinitionDto> AllEntityDefinitions { get; set; } = [];
-    [Parameter] public EntityDefinitionDto? CurrentEntity { get; set; }
+    [Parameter] public SortedSet<EntityDefinition> AllEntityDefinitions { get; set; } = [];
+    [Parameter] public EntityDefinition? CurrentEntity { get; set; }
     [Parameter] public string ButtonText { get; set; } = string.Empty;
 
     private MudForm form = default!;
@@ -86,8 +84,8 @@
     private bool valid, fieldValid, editing;
     private string? error;
 
-    private CreateEntityWithFieldsDto model = new();
-    private CreateFieldDefinitionDto newField = new();
+    private EntityDefinitionI model = new();
+    private FieldDefinitionI newField = new();
 
     protected override void OnInitialized()
     {
@@ -95,7 +93,7 @@
         {
             editing = true;
             model.Name = CurrentEntity.Name;
-            model.Fields = CurrentEntity.Fields.ConvertAll(x => new CreateFieldDefinitionDto()
+            model.Fields = CurrentEntity.Fields.ConvertAll(x => new FieldDefinitionI()
             {
                 Name = x.Name,
                 DataType = x.DataType,
@@ -122,7 +120,7 @@
         newField = new();
     }
 
-    private void RemoveField(CreateFieldDefinitionDto field) => model.Fields.Remove(field);
+    private void RemoveField(FieldDefinitionI field) => model.Fields.Remove(field);
     
     private string GetEntityNameById(Guid? entityId)
     {
@@ -146,8 +144,7 @@
 
         if (CurrentEntity != null)
         {
-            bool success = await EDS.UpdateEntityAsync(CurrentEntity.Id, model.Name);
-            if (!success)
+            if (!(await EDS.UpdateEntityAsync(CurrentEntity.Id, model)).IsSuccess)
                 return;
 
             await NS.Show($"Successfully renamed the Entity Definition to '{model.Name}'", Severity.Success);
@@ -155,8 +152,8 @@
         }
         else
         {
-            EntityDefinitionDto? entityDefinition = await EDS.CreateEntityAsync(model);
-            if (entityDefinition == null)
+            Result<EntityDefinition> entityDefinition = await EDS.CreateEntityAsync(model);
+            if (!entityDefinition.IsSuccess)
                 return;
 
             await NS.Show($"Successfully added Entity Definition '{model.Name}'", Severity.Success);

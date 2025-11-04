@@ -14,14 +14,14 @@ else if (refInstance != null)
     @if (CurrentDepth > 0)
     {
         <span class="mud-typography-body2">
-            (Entity: @(refInstance.EntityDefinitionName ?? "Unknown"))
+            (Entity: @name)
         </span>
     }
     else
     {
         <span class="mud-typography-body2">
             (
-            @foreach ((KeyValuePair<string, object> kvp, int index) in refInstance.Data.Select((value, i) => (value, i)))
+            @foreach ((KeyValuePair<string, object?> kvp, int index) in refInstance.Data.Select((value, i) => (value, i)))
             {
                 <strong>@kvp.Key: </strong>
                 <FieldValueDisplay Value="@kvp.Value" Depth="@(CurrentDepth + 1)" />
@@ -40,7 +40,8 @@ else if (refInstance != null)
     [Parameter] public int CurrentDepth { get; set; }
 
     private bool loading = true;
-    private EntityInstanceDto? refInstance;
+    private EntityInstance? refInstance;
+    private string name = string.Empty;
     private string? error;
 
     protected override async Task OnParametersSetAsync()
@@ -48,11 +49,14 @@ else if (refInstance != null)
         loading = true;
         error = null;
         refInstance = null;
-        Result<EntityInstanceDto?> result = await EIS.GetInstanceAsync(InstanceId);
+        Result<EntityInstance> result = await EIS.GetInstanceAsync(InstanceId);
         if (result.IsSuccess)
+        {
             refInstance = result.Value;
+            name = (await EDS.GetEntityDefinitionAsync(refInstance.EntityDefinitionId)).Value?.Name ?? "Unknown";
+        }
         else
-            error = $"({(result.StatusCode != System.Net.HttpStatusCode.NotFound && result.ErrorMessage != null ? result.ErrorMessage : "Instance not found")}{InstanceId.ToString().Substring(0, 8)}...)";
+            error = $"({(result.StatusCode != System.Net.HttpStatusCode.NotFound && result.Exception != null ? result.Exception.Message: "Instance not found")}{InstanceId.ToString().Substring(0, 8)}...)";
 
         loading = false;
     }
