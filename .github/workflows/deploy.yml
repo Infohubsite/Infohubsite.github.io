@@ -21,9 +21,6 @@ jobs:
         with:
           dotnet-version: 8.0
 
-      - name: Update GitHub Packages source with credentials
-        run: dotnet nuget update source "github" --username Infohubsite --password ${{ secrets.NUGET_GITHUB_PAT }} --store-password-in-clear-text
-
       - name: Restore dependencies
         run: dotnet restore Frontend.csproj
 
@@ -37,7 +34,7 @@ jobs:
           echo '}' >> wwwroot/build-info.json
 
       - name: Publish .NET Project
-        run: dotnet publish Frontend.csproj --configuration Release --output build --no-restore
+        run: dotnet publish Frontend.csproj --configuration Release --output build
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
