@@ -4,7 +4,6 @@ using Frontend.Models.Koofr;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
 using Shared.DTO.Server;
-using System.IO;
 
 namespace Frontend.Services
 {
@@ -33,6 +32,7 @@ namespace Frontend.Services
 
         public async Task Download(string fileName)
         {
+            // TODO
             // somehow download and then maybe display the file in the website
             throw new NotImplementedException();
         }
@@ -41,7 +41,6 @@ namespace Frontend.Services
         {
             if (_cache.Count == 0) return [];
 
-            _logger.LogInformation("Requesting upload URL from backend for {Count} files.", _cache.Count);
             Result<KoofrUploadDto> result = await _client.GetUpload();
 
             if (!result.IsSuccess || string.IsNullOrEmpty(result.Value.Url))
@@ -62,8 +61,6 @@ namespace Frontend.Services
         {
             try
             {
-                _logger.LogInformation("Uploading file #{Index}: {FileName} to Koofr via JS Interop.", index, file.Name);
-
                 using Stream stream = file.OpenReadStream(file.Size);
                 using DotNetStreamReference streamRef = new(stream);
 
@@ -75,7 +72,6 @@ namespace Frontend.Services
                     return (index, null);
                 }
 
-                _logger.LogInformation("Successfully uploaded file #{Index}: {FileName}", index, file.Name);
                 return (index, result.FirstOrDefault()?.Name);
             }
             catch (JSException ex)
