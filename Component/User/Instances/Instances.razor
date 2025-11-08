@@ -36,12 +36,7 @@ else if (entityInstances != null && !locked)
         <MudTable Items="entityDefinition?.Fields" Dense="true" Class="mb-4">
             <RowTemplate>
                 <MudTd>
-                    @context.Name
-                    @if (context.IsRequired)
-                    {
-                        <span style="color: red;">*</span>
-                    }
-                    <MudText> @((context.IsList ? "[" : "(") + context.DataType + (context.IsList ? "]" : ")"))</MudText>
+                    <FieldTypeDisplay field="context" />
                 </MudTd>
             </RowTemplate>
         </MudTable>

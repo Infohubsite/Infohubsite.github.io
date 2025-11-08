@@ -1,0 +1,21 @@
+﻿@inject IEntityDefinitionService EDS
+
+<MudText>
+    <strong>@field.Name</strong>
+    @if (field.IsRequired)
+    {
+        <span style="color: red;">*</span>
+    }
+    @(" " + (field.IsList ? "[" : "(") + (field.DataType == DataType.EntityReference ? $"Entity: {(field.ReferenceTargetEntityDefinitionId == null ? "N/A" : entityDefinitions?.FirstOrDefault(e => e.Id == field.ReferenceTargetEntityDefinitionId)?.Name ?? "Unknown")}" : field.DataType) + (field.IsList ? "]" : ")"))
+</MudText>
+
+@code {
+    [Parameter, EditorRequired] public FieldDefinition field { get; set; }
+    private List<EntityDefinition>? entityDefinitions;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Result<List<EntityDefinition>> result = await EDS.GetEntityDefinitionsAsync();
+        if (result.IsSuccess) entityDefinitions = result.Value;
+    }
+}

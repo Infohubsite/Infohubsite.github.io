@@ -37,11 +37,9 @@ else if (entityDefinitions != null)
             <MudTd DataLabel="Name" Style="width: 1%">@context.Name</MudTd>
             <MudTd DataLabel="Fields" Style="max-width: 1px;">
                 <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Style="overflow: hidden;">
-                    @foreach (var field in context.Fields)
+                    @foreach (FieldDefinition field in context.Fields)
                     {
-                        <MudText>
-                            <strong>@field.Name</strong> @((field.IsList ? "[" : "(") + (field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType) + (field.IsList ? "]" : ")"))
-                        </MudText>
+                        <FieldTypeDisplay field="field" />
                     }
                 </MudStack>
             </MudTd>
