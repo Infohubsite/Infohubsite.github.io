@@ -34,8 +34,26 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(!CheckValid())">@ButtonText</MudButton>
+        @if (uploading)
+        {
+            <div class="d-flex flex-column">
+                <MudText Typo="Typo.body2">@status</MudText>
+                <MudProgressLinear Color="Color.Primary" Value="uploadProgress * 100" />
+                <MudList T="string" Dense="true" Style="max-height: 150px; overflow-y: auto;">
+                    @foreach (KeyValuePair<string, FileUploadState> kvp in fileUploadStates)
+                    {
+                        <MudListItem Icon="@kvp.Value.Icon" IconColor="kvp.Value.Color">
+                            @kvp.Key
+                        </MudListItem>
+                    }
+                </MudList>
+            </div>
+        }
+        else
+        {
+            <MudButton OnClick="Cancel">Cancel</MudButton>
+            <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(!CheckValid())">@ButtonText</MudButton>
+        }
     </DialogActions>
 </MudDialog>
 
@@ -45,11 +63,19 @@
     [Parameter] public Guid? CurrentInstance { get; set; }
     [Parameter] public string ButtonText { get; set; } = string.Empty;
 
+    private class FileUploadState
+    {
+        public string Icon { get; set; } = Icons.Material.Filled.Schedule;
+        public Color Color { get; set; } = Color.Default;
+    }
+    private Dictionary<string, FileUploadState> fileUploadStates = [];
+
     private EntityDefinition? EntityDefinition;
     private MudForm form = default!;
     private EntityInstanceI model = new();
-    private string? error;
-    private bool valid;
+    private string? error, status;
+    private bool valid, uploading;
+    private float uploadProgress = 0f;
 
     protected override async Task OnInitializedAsync()
     {
@@ -120,10 +146,14 @@
         await form.Validate();
         if (!CheckValid()) return;
 
+        status = "Getting ready for upload";
+        error = null;
+        uploading = true;
+        StateHasChanged();
         Dictionary<string, object?> payload = new(model.Data);
         FS.ClearCache();
 
-        List<(int cacheIndex, string fieldName, int? listPosition)> uploads = [];
+        List<(int cacheIndex, string fieldName, string filename, int? listPosition)> uploads = [];
 
         foreach (FieldDefinition field in EntityDefinition!/*not null because CheckValid function checks that*/.Fields.Where(f => f.DataType == DataType.File))
         {
@@ -133,23 +163,37 @@
             {
                 if (value is List<object> fileList)
                     for (int i = 0; i < fileList.Count; i++)
-                        if (fileList[i] is IBrowserFile browserFile)
-                            uploads.Add((FS.Cache(browserFile), field.Name, i));
+                        if (fileList[i] is IBrowserFile file)
+                            uploads.Add((FS.Cache(file), field.Name, file.Name, i));
             }
             else if (value is IBrowserFile file)
-                uploads.Add((FS.Cache(file), field.Name, null));
+                uploads.Add((FS.Cache(file), field.Name, file.Name, null));
         }
 
         if (uploads.Any())
         {
-            Task<IEnumerable<string?>> uploadTask = FS.Upload();
-            // TODO: somehow not block and display file uploading progress
-            /*temp*/ var uploadResults = await uploadTask;
-
+            fileUploadStates = uploads.ToDictionary(u => u.filename, u => new FileUploadState());
+            IEnumerable<string?> uploadResults = await FS.Upload((IFileService.UploadProgress progress) =>
+            {
+                status = progress.Status;
+                uploadProgress = progress.Progess;
+                if (progress.Name != null && fileUploadStates.TryGetValue(progress.Name, out FileUploadState? state))
+                    if (progress.Success == true)
+                    {
+                        state.Icon = Icons.Material.Filled.Done;
+                        state.Color = Color.Success;
+                    }
+                    else
+                    {
+                        state.Icon = Icons.Material.Filled.Error;
+                        state.Color = Color.Error;
+                    }
+                StateHasChanged();
+            });
 
             string?[] resultsArr = [.. uploadResults];
             Dictionary<int, string?> results = uploads.Select((map, i) => (map.cacheIndex, resultsArr[i])).ToDictionary(t => t.cacheIndex, t => t.Item2);
-            foreach ((int cacheIndex, string fieldName, int? listPosition) entry in uploads)
+            foreach ((int cacheIndex, string fieldName, string _, int? listPosition) entry in uploads)
                 if (results.TryGetValue(entry.cacheIndex, out string? newFileName) && newFileName != null)
                     if (entry.listPosition == null)
                         payload[entry.fieldName] = newFileName;
@@ -179,8 +223,9 @@
         if (CurrentInstance == null)
         {
             Task<Result<EntityInstance>> resultTask = EIS.CreateInstanceAsync(EntityDefinitionId, new() { Data = payload });
-            // TODO: don't block, but signal ongoing operation
-            /*temp*/ var result = await resultTask;
+            status = "Creating instance";
+            StateHasChanged();
+            Result<EntityInstance> result = await resultTask;
 
             if (result.IsSuccess)
             {
@@ -192,8 +237,9 @@
         else
         {
             Task<Result> resultTask = EIS.UpdateInstanceAsync(CurrentInstance.Value, new() { Data = payload });
-            // TODO: don't block, but signal ongoing operation
-            /*temp*/ var result = await resultTask;
+            status = "Updating instance";
+            StateHasChanged();
+            Result result = await resultTask;
 
             if (result.IsSuccess)
             {

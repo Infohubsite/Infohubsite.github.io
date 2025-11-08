@@ -9,10 +9,11 @@ namespace Frontend.Services
 {
     public interface IFileService
     {
+        public record UploadProgress(string Status, float Progess, string? Name = null, bool? Success = null);
         int Cache(IBrowserFile file);
         void ClearCache();
         Task Download(string fileName);
-        Task<IEnumerable<string?>> Upload();
+        Task<IEnumerable<string?>> Upload(Action<UploadProgress> progress);
     }
 
     public class FileService(DefaultClient client, IJSRuntime jsRuntime, ILogger<FileService> logger) : IFileService
@@ -37,20 +38,35 @@ namespace Frontend.Services
             throw new NotImplementedException();
         }
 
-        public async Task<IEnumerable<string?>> Upload()
+        public async Task<IEnumerable<string?>> Upload(Action<IFileService.UploadProgress> progress)
         {
             if (_cache.Count == 0) return [];
 
+            progress(new("Getting ready to uplaod files", 0f));
             Result<KoofrUploadDto> result = await _client.GetUpload();
 
             if (!result.IsSuccess || string.IsNullOrEmpty(result.Value.Url))
             {
                 _logger.LogError("Backend did not return a valid upload URL.");
+                progress(new("File upload failed", 1f));
                 return Enumerable.Repeat<string?>(null, _cache.Count);
             }
 
-            (int index, string? fileName)[] results = await Task.WhenAll(_cache.Select((file, index) => Upload(file, index, result.Value.Url)));
+            int total = _cache.Count;
+            int completedCount = 0;
 
+            progress(new($"Uploaded 0 of {total} files", 0f));
+            (int index, string? fileName)[] results = await Task.WhenAll(_cache.Select((file, index) =>
+                Upload(file, index, result.Value.Url)
+                    .ContinueWith(task =>
+                    {
+                        int currentCount = Interlocked.Increment(ref completedCount);
+                        progress(new($"Uploaded {currentCount} of {total} files", (float)currentCount / total, task.IsCompletedSuccessfully ? task.Result.fileName : file.Name, task.IsCompletedSuccessfully));
+                        return task.Result;
+                    })
+            ));
+
+            progress(new("Upload complete", 1f));
             ClearCache();
             return results
                 .OrderBy(r => r.index)

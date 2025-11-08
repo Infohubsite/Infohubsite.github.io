@@ -1,23 +1,31 @@
-﻿<div class="d-flex">
-    <FieldDisplay @ref="display" FieldName="@Label" DataType="DataType" Required="Required && Values.Count == 0" ReferenceTargetEntityDefinitionId="ReferenceTargetEntityDefinitionId" @bind-Value="value" />
+﻿<div class="d-flex align-center">
+    <div style="overflow: hidden;">
+        <FieldDisplay @ref="display" FieldName="@Label" DataType="DataType" Required="Required && Values.Count == 0" ReferenceTargetEntityDefinitionId="ReferenceTargetEntityDefinitionId" @bind-Value="value" />
+    </div>
+    <MudSpacer />
     <MudButton OnClick="AddChip"
                Variant="Variant.Filled"
-               Color="Color.Primary"
-               Class="ml-2 align-self-center">Add</MudButton>
+               Color="Color.Primary">Add</MudButton>
 </div>
 
 <div class="mt-2">
     @foreach (object chip in Values)
     {
         <MudChip T="string" Color="Color.Secondary" OnClose="() => RemoveChip(chip)">
-            @if (DataType == DataType.EntityReference && chip is Guid guid)
-            {
-                <GuidRenderer CurrentDepth="0" InstanceId="guid" />
-            }
-            else
-            {
-                @chip
-            }
+            <MudText Style="overflow: hidden; white-space: nowrap;">
+                @if (DataType == DataType.EntityReference && chip is Guid guid)
+                {
+                    <GuidRenderer CurrentDepth="0" InstanceId="guid" />
+                }
+                else if (DataType == DataType.File && chip is IBrowserFile file)
+                {
+                    @file.Name
+                }
+                else
+                {
+                    @chip
+                }
+            </MudText>
         </MudChip>
     }
 </div>
