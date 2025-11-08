@@ -14,6 +14,7 @@ namespace Frontend.HttpClients
         {
             Content = JsonContent.Create(new { username, password })
         }, "Error while logging in", (ex) => _logger.LogError(ex, "Could not log in"));
+        public async Task<Result<LoginResponse>> Renew() => await HandleAsync(SendResult<LoginResponse, LoginResponseDto>, new(HttpMethod.Get, "/Auth/Renew"), "Error while renewing auth token", (ex) => _logger.LogError(ex, "Could not renew auth token"));
         #endregion
         #region ADMIN
         public async Task<Result> RefreshCredentials() => await HandleAsync(SendResult, new(HttpMethod.Post, "/Admin/RefreshCredentials"), "Error while refreshing credentials", (ex) => _logger.LogError(ex, "Could not refresh credentials"));

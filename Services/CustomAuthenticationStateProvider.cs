@@ -15,7 +15,7 @@ namespace Frontend.Services
         public Task<bool> CheckAuthenticatedAsync();
     }
 
-    public class CustomAuthenticationStateProvider(DefaultClient client, ILogger<CustomAuthenticationStateProvider> logger, ILocalStorageService localStorage) : AuthenticationStateProvider, IAccountManagement
+    public class CustomAuthenticationStateProvider(DefaultClient client, ILogger<CustomAuthenticationStateProvider> logger, ILocalStorageService localStorage) : AuthenticationStateProvider, IAccountManagement, IDisposable
     {
         private readonly ILogger<CustomAuthenticationStateProvider> _logger = logger;
         private readonly ILocalStorageService _localStorage = localStorage;
@@ -25,11 +25,15 @@ namespace Frontend.Services
 
         private readonly DefaultClient _client = client;
 
+        private Timer? _tokenRenewal;
+
         public override async Task<AuthenticationState> GetAuthenticationStateAsync()
         {
             _authenticated = false;
             try
             {
+                _tokenRenewal?.Dispose();
+
                 string? token = await _localStorage.GetItemAsync("authToken");
 
                 if (string.IsNullOrEmpty(token)) return await NoAuth();
@@ -37,7 +41,15 @@ namespace Frontend.Services
                 Dictionary<string, object>? dict = ParsePayloadFromJwt(token);
                 if (dict == null || !dict.TryGetValue("exp", out object? expObject) || expObject == null) return await NoAuth();
                 if (!long.TryParse(expObject.ToString(), out long expValue)) return await NoAuth();
-                if (DateTimeOffset.FromUnixTimeSeconds(expValue) <= DateTimeOffset.UtcNow) return await NoAuth();
+                DateTimeOffset exp = DateTimeOffset.FromUnixTimeSeconds(expValue);
+                if (exp <= DateTimeOffset.UtcNow) return await NoAuth();
+
+                _tokenRenewal = new Timer(
+                    async _ => await Renew(),
+                    null,
+                    (long)(exp.AddMinutes(-10) - DateTimeOffset.UtcNow).TotalMilliseconds,
+                    Timeout.Infinite
+                );
 
                 _authenticated = true;
                 return new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity(ParseClaimsFromJwt(dict), "jwt")));
@@ -51,6 +63,17 @@ namespace Frontend.Services
             return new AuthenticationState(Unauthenticated);
         }
 
+        private async Task Renew()
+        {
+            Result<LoginResponse> result = await _client.Renew();
+            if (result.IsSuccess)
+            {
+                await _localStorage.SetItemAsync("authToken", result.Value.Token);
+                NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+            }
+            else
+                await LogoutAsync();
+        }
         public async Task<FormResult> LoginAsync(string username, string password)
         {
             Result<LoginResponse>? response = null;
@@ -59,9 +82,8 @@ namespace Frontend.Services
                 response = await _client.Login(username, password);
                 if (response.IsSuccess)
                 {
-                    Task task = _localStorage.SetItemAsync("authToken", response.Value.Token);
+                    await _localStorage.SetItemAsync("authToken", response.Value.Token);
                     NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
-                    await task;
                     return new FormResult { Succeeded = true };
                 }
                 else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -86,6 +108,7 @@ namespace Frontend.Services
         public async Task LogoutAsync()
         {
             await _localStorage.RemoveItemAsync("authToken");
+            _tokenRenewal?.Dispose();
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
         public async Task<bool> CheckAuthenticatedAsync()
@@ -132,6 +155,12 @@ namespace Frontend.Services
             }
 
             return Convert.FromBase64String(base64);
+        }
+
+        public void Dispose()
+        {
+            _tokenRenewal?.Dispose();
+            GC.SuppressFinalize(this);
         }
     }
 }
