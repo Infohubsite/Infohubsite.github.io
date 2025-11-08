@@ -7,8 +7,15 @@
 		@Content
 	</DialogContent>
 	<DialogActions>
-		<MudButton OnClick="Cancel">Cancel</MudButton>
-		<MudButton OnClick="Submit" StartIcon="@ButtonStartIcon" Color="ButtonColor" Variant="Variant.Filled">@ButtonText</MudButton>
+		@if (loading)
+		{
+			<MudProgressLinear Indeterminate="true" />
+		}
+		else
+		{
+			<MudButton OnClick="Cancel">Cancel</MudButton>
+			<MudButton OnClick="Submit" StartIcon="@ButtonStartIcon" Color="ButtonColor" Variant="Variant.Filled">@ButtonText</MudButton>
+		}
 	</DialogActions>
 </MudDialog>
 
@@ -24,17 +31,22 @@
 	[Parameter] public Func<Task<bool>>? OnSubmit { get; set; }
 	[Parameter] public string? ErrorMessage { get; set; }
 
+	private bool loading = false;
+
 	private bool error;
 
 	private async Task Submit()
 	{
+		loading = true;
 		error = false;
+		StateHasChanged();
 		if (OnSubmit == null)
 			MudDialog.Close(DialogResult.Ok(false));
 		else if (await OnSubmit())
 			MudDialog.Close(DialogResult.Ok(true));
 		else
 			error = true;
+		StateHasChanged();
 	}
 	private void Cancel() => MudDialog.Cancel();
 }

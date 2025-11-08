@@ -36,7 +36,7 @@
     <DialogActions>
         @if (uploading)
         {
-            <div class="d-flex flex-column">
+            <div class="d-flex flex-column flex-grow-1">
                 <MudText Typo="Typo.body2">@status</MudText>
                 <MudProgressLinear Color="Color.Primary" Value="uploadProgress * 100" />
                 <MudList T="string" Dense="true" Style="max-height: 150px; overflow-y: auto;">
@@ -47,6 +47,7 @@
                         </MudListItem>
                     }
                 </MudList>
+                <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
             </div>
         }
         else
