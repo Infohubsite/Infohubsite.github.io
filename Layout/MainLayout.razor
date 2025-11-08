@@ -3,6 +3,7 @@
 @inject IAccountManagement Acct
 @inject ILocalStorageService LS
 @inject INotificationService NS
+@inject IAdminService AS
 @inject ISnackbar Snackbar
 @inject NavigationManager NM
 
@@ -32,6 +33,7 @@
 
                     @if (context.User.IsInRole("admin"))
                     {
+                        <MudIconButton Icon="@Icons.Material.Filled.Cached" Color="Color.Inherit" OnClick="RefreshCredentials" />
                         <MudIconButton Icon="@Icons.Material.Filled.AdminPanelSettings" Color="Color.Inherit" OnClick="ToggleAdminMode" />
                     }
 
@@ -94,6 +96,12 @@
         adminActive = !adminActive;
         var landingPage = adminActive ? adminNavLinks.First().Href : userNavLinks.First().Href;
         NM.NavigateTo(landingPage);
+    }
+
+    private async Task RefreshCredentials()
+    {
+        if (await AS.RefreshCredentials())
+            await NS.Show("Successfully refreshed credentials", Severity.Success);
     }
 
     private async Task ToggleThemeAsync()

@@ -23,6 +23,7 @@ namespace Frontend
             builder.Services.AddScoped<EntityDefinitionService>();
             builder.Services.AddScoped<EntityInstanceService>();
 
+            builder.Services.AddSingleton<IAdminService, AdminService>();
             builder.Services.AddSingleton<ICacheService, CacheService>();
             builder.Services.AddSingleton<INotificationService, NotificationService>();
             builder.Services.AddScoped<ILocalStorageService, LocalStorageService>();

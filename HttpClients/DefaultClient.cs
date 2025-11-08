@@ -3,7 +3,6 @@ using Frontend.Models.Converted;
 using Frontend.Services;
 using Shared.DTO.Client;
 using Shared.DTO.Server;
-using Shared.Interface;
 using System.Net.Http.Json;
 
 namespace Frontend.HttpClients
@@ -15,6 +14,9 @@ namespace Frontend.HttpClients
         {
             Content = JsonContent.Create(new { username, password })
         }, "Error while logging in", (ex) => _logger.LogError(ex, "Could not log in"));
+        #endregion
+        #region ADMIN
+        public async Task<Result> RefreshCredentials() => await HandleAsync(SendResult, new(HttpMethod.Post, "/Admin/RefreshCredentials"), "Error while refreshing credentials", (ex) => _logger.LogError(ex, "Could not refresh credentials"));
         #endregion
         #region ENTITY DEFINITIONS
         public async Task<Result<EntityDefinition>> CreateEntityDefinition(CreateEntityDefinitionDto newEntity) => await HandleAsync(SendResult<EntityDefinition, EntityDefinitionDto>, new(HttpMethod.Post, "/EntityDefinitions")
