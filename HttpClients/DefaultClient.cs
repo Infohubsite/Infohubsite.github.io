@@ -40,7 +40,7 @@ namespace Frontend.HttpClients
         public async Task<Result> DeleteInstance(Guid instanceId, bool force = false) => await HandleAsync(SendResult, new(HttpMethod.Delete, $"/Instances/{instanceId}{(force ? "?force=true" : "")}"), $"Error while deleting instance '{instanceId}'", (ex) => _logger.LogError(ex, "Could not delete instance with ID '{instanceId}'", instanceId));
         public async Task<Result<EntityInstance>> GetInstance(Guid instanceId) => await HandleAsync(SendResult<EntityInstance, EntityInstanceDto>, new(HttpMethod.Get, $"/Instances/Instance/{instanceId}"), $"Error while fetching instance '{instanceId}'", (ex) => _logger.LogError(ex, "Could not fetch instance with ID '{instanceId}'", instanceId));
         public async Task<Result<List<EntityInstance>>> GetInstances(Guid entityId) => await HandleAsync(SendResultList<EntityInstance, EntityInstanceDto>, new(HttpMethod.Get, $"/Instances/{entityId}"), $"Error while fetching instances for entity '{entityId}'", (ex) => _logger.LogError(ex, "Could not fetch instances for entity with ID '{entityId}'", entityId));
-        public async Task<Result<EntityInstance>> UpdateInstance(Guid instanceId, UpdateInstanceDto updateInstance) => await HandleAsync(SendResult<EntityInstance, EntityInstanceDto>, new(HttpMethod.Put, $"/Instances/{instanceId}")
+        public async Task<Result> UpdateInstance(Guid instanceId, UpdateInstanceDto updateInstance) => await HandleAsync(SendResult, new(HttpMethod.Put, $"/Instances/{instanceId}")
         {
             Content = JsonContent.Create(updateInstance)
         }, $"Error while updating instance '{instanceId}'", (ex) => _logger.LogError(ex, "Could not update instance with ID '{instanceId}'", instanceId));
