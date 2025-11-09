@@ -1,5 +1,4 @@
 ﻿using Frontend.Common;
-using Frontend.Extenstions;
 using Frontend.HttpClients;
 using Frontend.Models.Converted;
 using Shared.DTO.Client;
@@ -36,55 +35,43 @@ namespace Frontend.Services
             if (!refresh && CS.EntityInstancesCache.TryGetValue(entityId, out List<EntityInstance>? value))
                 return Result<List<EntityInstance>>.Success([.. value.OrderBy(i => i.Id)]);
             Result<List<EntityInstance>> result = await EIS.GetInstancesAsync(entityId);
-            if (result.Value != null) CS.EntityInstancesCache[entityId] = result.Value;
+            if (result.IsSuccess)
+            {
+                CS.EntityInstancesCache.Removes(entityId);
+                CS.EntityInstancesCache.AddRange(result.Value.Select(e => (entityId, e.Id, e)));
+            }
             return result;
         }
         public async Task<Result<EntityInstance>> GetInstanceAsync(Guid instanceId, bool refresh = false)
         {
-            if (!refresh && CS.EntityInstancesCache.TryGetInstance(instanceId, out EntityInstance? instance))
+            if (!refresh && CS.EntityInstancesCache.TryGetValue(instanceId, out EntityInstance? instance))
                 return Result<EntityInstance>.Success(instance);
 
             Result<EntityInstance> result = await EIS.GetInstanceAsync(instanceId);
-            if (result.Value != null && CS.EntityInstancesCache.TryGetValue(result.Value.EntityDefinitionId, out List<EntityInstance>? instances))
-            {
-                instances.RemoveAll(i => i.Id == result.Value.Id);
-                instances.Add(result.Value);
-            }
+            CS.EntityInstancesCache.Remove(instanceId);
+            if (result.IsSuccess)
+                CS.EntityInstancesCache.Add(result.Value.EntityDefinitionId, instanceId, result.Value);
             return result;
         }
         public async Task<Result> DeleteInstanceAsync(Guid instanceId, bool force = false)
         {
             Result result = await EIS.DeleteInstanceAsync(instanceId, force);
             if (result.IsSuccess)
-            {
-                KeyValuePair<Guid, List<EntityInstance>> entry = CS.EntityInstancesCache.FirstOrDefault(kvp => kvp.Value.Any(instance => instance.Id == instanceId));
-                if (entry.Value != null)
-                {
-                    entry.Value.RemoveAll(instance => instance.Id == instanceId);
-                    if (entry.Value.Count == 0)
-                        CS.EntityInstancesCache.Remove(entry.Key);
-                }
-            }
+                CS.EntityInstancesCache.Remove(instanceId);
             return result;
         }
         public async Task<Result<EntityInstance>> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
         {
             Result<EntityInstance> result = await EIS.CreateInstanceAsync(entityId, newInstance);
-            if (result.Value != null)
-                if (CS.EntityInstancesCache.TryGetValue(entityId, out List<EntityInstance>? instanceList))
-                    instanceList.Add(result.Value);
-                else
-                    CS.EntityInstancesCache[entityId] = [result.Value];
+            if (result.IsSuccess)
+                CS.EntityInstancesCache.Add(entityId, result.Value.Id, result.Value);
             return result;
         }
         public async Task<Result> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto)
         {
             Result result = await EIS.UpdateInstanceAsync(instanceId, updateDto);
-            if (result.IsSuccess)
-            {
-                EntityInstance? instance = CS.EntityInstancesCache.Values.SelectMany(l => l).FirstOrDefault(i => i.Id == instanceId);
-                if (instance != null) instance.Data = updateDto.Data.Where(kvp => kvp.Value != null).ToDictionary();
-            }
+            if (result.IsSuccess && CS.EntityInstancesCache.TryGetValue(instanceId, out EntityInstance? instance))
+                instance.Data = updateDto.Data;
             return result;
         }
     }
