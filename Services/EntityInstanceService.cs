@@ -33,8 +33,8 @@ namespace Frontend.Services
 
         public async Task<Result<List<EntityInstance>>> GetInstancesAsync(Guid entityId, bool refresh = false)
         {
-            if (!refresh && Cached.Contains(entityId) && CS.EntityInstancesCache.TryGetValue(entityId, out List<EntityInstance>? value))
-                return Result<List<EntityInstance>>.Success([.. value.OrderBy(i => i.Id)]);
+            if (!refresh && Cached.Contains(entityId))
+                return Result<List<EntityInstance>>.Success([.. (CS.EntityInstancesCache.TryGetValue(entityId, out List<EntityInstance>? value) ? value : []).OrderBy(i => i.Id)]);
             Result<List<EntityInstance>> result = await EIS.GetInstancesAsync(entityId);
             if (result.IsSuccess)
             {
