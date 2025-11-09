@@ -56,7 +56,7 @@ else if (refInstance != null)
             name = (await EDS.GetEntityDefinitionAsync(refInstance.EntityDefinitionId)).Value?.Name ?? "Unknown";
         }
         else
-            error = $"({(result.StatusCode != System.Net.HttpStatusCode.NotFound && result.Exception != null ? result.Exception.Message: "Instance not found")}{InstanceId.ToString().Substring(0, 8)}...)";
+            error = $"({(result.StatusCode != System.Net.HttpStatusCode.NotFound && result.Exception != null ? result.Exception.Message : "Instance not found")} {InstanceId.ToString().Substring(0, 8)}...)";
 
         loading = false;
     }
