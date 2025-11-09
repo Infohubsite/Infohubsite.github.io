@@ -3,6 +3,7 @@ using Frontend.HttpClients;
 using Frontend.Models.Koofr;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
+using Polly;
 using Shared.DTO.Server;
 
 namespace Frontend.Services
@@ -54,14 +55,13 @@ namespace Frontend.Services
 
             int total = _cache.Count;
             int completedCount = 0;
-
             progress(new($"Uploaded 0 of {total} files", 0f));
             (int index, string? fileName)[] results = await Task.WhenAll(_cache.Select((file, index) =>
                 Upload(file, index, result.Value.Url)
                     .ContinueWith(task =>
                     {
                         int currentCount = Interlocked.Increment(ref completedCount);
-                        progress(new($"Uploaded {currentCount} of {total} files", (float)currentCount / total, task.IsCompletedSuccessfully ? task.Result.fileName : file.Name, task.IsCompletedSuccessfully));
+                        progress(new($"Uploaded {currentCount} of {total} files", (float)currentCount / total, file.Name, task.Result.fileName != null));
                         return task.Result;
                     })
             ));
@@ -80,26 +80,31 @@ namespace Frontend.Services
                 using Stream stream = file.OpenReadStream(file.Size);
                 using DotNetStreamReference streamRef = new(stream);
 
-                FileResponseDto[] result = await _jsRuntime.InvokeAsync<FileResponseDto[]>("uploadFileToKoofr", uploadUrl, streamRef, file.Name, file.ContentType);
-
-                if (result == null || result.Length == 0)
+                ValueTask<FileResponseDto[]> result = _jsRuntime.InvokeAsync<FileResponseDto[]>("uploadFileToKoofr", uploadUrl, streamRef, file.Name, file.ContentType);
+                FileResponseDto[] response = await result;
+                if (!result.IsCompletedSuccessfully)
                 {
-                    _logger.LogError("Koofr upload for file #{Index} ({FileName}) did not return a valid response.", index, file.Name);
-                    return (index, null);
+                    _logger.LogError("Failed to upload file #{Index} ({FileName})", index, file.Name);
+                    return (0, null);
                 }
 
-                return (index, result.FirstOrDefault()?.Name);
+                if (response.Length == 0)
+                {
+                    _logger.LogError("Koofr upload for file #{Index} ({FileName}) did not return a valid response", index, file.Name);
+                    return (0, null);
+                }
+
+                return (index, response.FirstOrDefault()?.Name);
             }
             catch (JSException ex)
             {
-                _logger.LogError(ex, "JS Interop error during upload for file #{Index} ({FileName}).", index, file.Name);
-                return (index, null);
+                _logger.LogError(ex, "JS Interop error during upload for file #{Index} ({FileName})", index, file.Name);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An exception occurred while uploading file #{Index}: {FileName}", index, file.Name);
-                return (index, null);
             }
+            return (0, null);
         }
     }
 }

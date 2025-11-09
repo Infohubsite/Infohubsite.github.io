@@ -210,7 +210,7 @@
                 if (field.IsList && value is List<object> objectList)
                     payload[field.Name] = objectList.OfType<string>().ToList();
                 else if (value is not string && value != null)
-                    payload[field.Name] = value.ToString() + "*[AUTOMATICALLY CONVERTED TO STRING]"; // don't forget, when fetching files to remove anything after the star sign
+                    payload[field.Name] = "[FAILED TO UPLOAD FILE]*" + (value is IBrowserFile file ? file.Name : value.ToString()); // don't forget, when fetching files to ignore ones with a star
 
             if (!field.IsRequired)
                 if (value == null)
