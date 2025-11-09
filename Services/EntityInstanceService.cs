@@ -29,14 +29,16 @@ namespace Frontend.Services
     {
         private readonly IEntityInstanceService EIS = eis;
         private readonly ICacheService CS = cs;
+        private readonly HashSet<Guid> Cached = [];
 
         public async Task<Result<List<EntityInstance>>> GetInstancesAsync(Guid entityId, bool refresh = false)
         {
-            if (!refresh && CS.EntityInstancesCache.TryGetValue(entityId, out List<EntityInstance>? value))
+            if (!refresh && Cached.Contains(entityId) && CS.EntityInstancesCache.TryGetValue(entityId, out List<EntityInstance>? value))
                 return Result<List<EntityInstance>>.Success([.. value.OrderBy(i => i.Id)]);
             Result<List<EntityInstance>> result = await EIS.GetInstancesAsync(entityId);
             if (result.IsSuccess)
             {
+                Cached.Add(entityId);
                 CS.EntityInstancesCache.Removes(entityId);
                 CS.EntityInstancesCache.AddRange(result.Value.Select(e => (entityId, e.Id, e)));
             }
