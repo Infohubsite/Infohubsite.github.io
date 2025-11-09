@@ -80,7 +80,7 @@ else if (entityDefinitions != null)
         if (args.Item == null)
             return;
 
-        NM.NavigateTo($"/Instances/{args.Item.Id}");
+        NM.NavigateTo($"/Entities/{args.Item.Id}");
     }
 
     private string GetEntityNameById(Guid? entityId)

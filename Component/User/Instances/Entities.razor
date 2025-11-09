@@ -1,4 +1,4 @@
-﻿@page "/Instances/{EntityIdstr}"
+﻿@page "/Entities/{EntityIdstr}"
 @inject ICacheService CS
 @inject IEntityInstanceService EIS
 @inject IEntityDefinitionService EDS
@@ -42,7 +42,7 @@ else if (entityInstances != null && !locked)
         </MudTable>
     }
 
-    <MudTable Items="filteredEntityInstances" Bordered="true" Breakpoint="Breakpoint.None" Style="white-space: nowrap;">
+    <MudTable Items="filteredEntityInstances" Bordered="true" Breakpoint="Breakpoint.None" Style="white-space: nowrap;" OnRowClick="(TableRowClickEventArgs<EntityInstance> args) => OpenInstance(args)">
         <ToolBarContent>
             <MudIconButton OnClick="@(() => NM.NavigateTo("/"))" Icon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Secondary" Style="margin: 0px 10px 0px 0px;" />
             <MudIconButton OnClick="() => Load(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
@@ -136,6 +136,13 @@ else if (entityInstances != null && !locked)
             filteredEntityInstances = [.. InstanceUtils.FilterInstances(entityInstances, searchString)];
     }
 
+    private void OpenInstance(TableRowClickEventArgs<EntityInstance> args)
+    {
+        if (args.Item == null)
+            return;
+
+        NM.NavigateTo($"/Instance/{args.Item.Id}");
+    }
     private async Task OpenInstanceDialog(EntityInstance? context = null)
     {
         DialogOptions options = new()
