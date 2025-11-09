@@ -47,7 +47,7 @@ namespace Frontend.Services
                 _tokenRenewal = new Timer(
                     async _ => await Renew(),
                     null,
-                    (long)(exp.AddMinutes(-10) - DateTimeOffset.UtcNow).TotalMilliseconds,
+                    Math.Max((long)(exp.AddMinutes(-10) - DateTimeOffset.UtcNow).TotalMilliseconds, 0),
                     Timeout.Infinite
                 );
 
