@@ -16,20 +16,19 @@ namespace Frontend.Services
     public class Dictionary<TKeyA, TKeyB, TValue> where TKeyA : notnull where TKeyB : notnull
     {
         private readonly Dictionary<TKeyA, List<TValue>> _dictA = [];
-        private readonly Dictionary<TKeyB, TValue> _dictB = [];
-        private readonly Dictionary<TKeyB, TKeyA> _keyBToKeyAMap = [];
+        private readonly Dictionary<TKeyB, (TKeyA KeyA, TValue Value)> _dictB = [];
 
         public int Count => _dictB.Count;
         public ICollection<TKeyA> KeysA => _dictA.Keys;
         public ICollection<TKeyB> KeysB => _dictB.Keys;
-        public ICollection<TValue> Values => _dictB.Values;
+        public ICollection<TValue> Values => [.. _dictB.Values.Select(x => x.Value)];
+
         public void Add(TKeyA keyA, TKeyB keyB, TValue value)
         {
             if (_dictB.ContainsKey(keyB))
                 throw new ArgumentException("An item with the same unique key (KeyB) already exists.", nameof(keyB));
 
-            _dictB.Add(keyB, value);
-            _keyBToKeyAMap.Add(keyB, keyA);
+            _dictB.Add(keyB, (keyA, value));
 
             if (!_dictA.TryGetValue(keyA, out List<TValue>? list))
             {
@@ -45,20 +44,20 @@ namespace Frontend.Services
         }
 
         public bool TryGetValue(TKeyA keyA, [MaybeNullWhen(false)] out List<TValue> values) => _dictA.TryGetValue(keyA, out values);
-        public bool TryGetValue(TKeyB keyB, [MaybeNullWhen(false)] out TValue value) => _dictB.TryGetValue(keyB, out value);
+        public bool TryGetValue(TKeyB keyB, [MaybeNullWhen(false)] out TValue value)
+        {
+            bool ret = _dictB.TryGetValue(keyB, out (TKeyA KeyA, TValue Value) entry);
+            value = entry.Value;
+            return ret;
+        }
         public bool Removes(TKeyA keyA)
         {
             if (!_dictA.TryGetValue(keyA, out List<TValue>? valuesToRemove)) return false;
 
-            List<TKeyB> keysBToRemove = [.. _keyBToKeyAMap
-                .Where(kvp => kvp.Value.Equals(keyA))
-                .Select(kvp => kvp.Key)];
-
-            foreach (TKeyB keyB in keysBToRemove)
-            {
+            foreach (TKeyB keyB in _dictB
+                .Where(kvp => kvp.Value.KeyA.Equals(keyA))
+                .Select(kvp => kvp.Key))
                 _dictB.Remove(keyB);
-                _keyBToKeyAMap.Remove(keyB);
-            }
 
             _dictA.Remove(keyA);
 
@@ -66,16 +65,15 @@ namespace Frontend.Services
         }
         public bool Remove(TKeyB keyB)
         {
-            if (!_dictB.TryGetValue(keyB, out TValue? valueToRemove) || !_keyBToKeyAMap.TryGetValue(keyB, out TKeyA? keyA)) return false;
+            if (!_dictB.TryGetValue(keyB, out (TKeyA KeyA, TValue Value) entry)) return false;
 
             _dictB.Remove(keyB);
-            _keyBToKeyAMap.Remove(keyB);
 
-            if (_dictA.TryGetValue(keyA, out List<TValue>? list))
+            if (_dictA.TryGetValue(entry.KeyA, out List<TValue>? list))
             {
-                list.Remove(valueToRemove);
+                list.Remove(entry.Value);
                 if (list.Count == 0)
-                    _dictA.Remove(keyA);
+                    _dictA.Remove(entry.KeyA);
             }
 
             return true;
@@ -86,7 +84,6 @@ namespace Frontend.Services
         {
             _dictA.Clear();
             _dictB.Clear();
-            _keyBToKeyAMap.Clear();
         }
     }
 }
