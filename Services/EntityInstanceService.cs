@@ -34,49 +34,47 @@ namespace Frontend.Services
         public async Task<Result<List<EntityInstance>>> GetInstancesAsync(Guid entityId, bool refresh = false)
         {
             if (!refresh && Cached.Contains(entityId))
-                return Result<List<EntityInstance>>.Success([.. (CS.EntityInstancesCache.TryGetValue(entityId, out List<EntityInstance>? value) ? value : []).OrderBy(i => i.Id)]);
+                return Result<List<EntityInstance>>.Success([.. CS.GetInstances(entityId)]);
             Result<List<EntityInstance>> result = await EIS.GetInstancesAsync(entityId);
+            CS.RemoveInstances(entityId);
             if (result.IsSuccess)
             {
                 Cached.Add(entityId);
-                CS.EntityInstancesCache.Removes(entityId);
-                CS.EntityInstancesCache.AddRange(result.Value.Select(e => (entityId, e.Id, e)));
+                CS.AddInstances(result.Value);
             }
             else
-            {
-                CS.EntityInstancesCache.Removes(entityId);
-            }
+                Cached.Remove(entityId);
             return result;
         }
         public async Task<Result<EntityInstance>> GetInstanceAsync(Guid instanceId, bool refresh = false)
         {
-            if (!refresh && CS.EntityInstancesCache.TryGetValue(instanceId, out EntityInstance? instance))
+            if (!refresh && CS.TryGetInstance(instanceId, out EntityInstance? instance))
                 return Result<EntityInstance>.Success(instance);
 
             Result<EntityInstance> result = await EIS.GetInstanceAsync(instanceId);
-            CS.EntityInstancesCache.Remove(instanceId);
+            CS.RemoveInstance(instanceId);
             if (result.IsSuccess)
-                CS.EntityInstancesCache.Add(result.Value.EntityDefinitionId, instanceId, result.Value);
+                CS.AddInstance(result.Value);
             return result;
         }
         public async Task<Result> DeleteInstanceAsync(Guid instanceId, bool force = false)
         {
             Result result = await EIS.DeleteInstanceAsync(instanceId, force);
             if (result.IsSuccess)
-                CS.EntityInstancesCache.Remove(instanceId);
+                CS.RemoveInstance(instanceId);
             return result;
         }
         public async Task<Result<EntityInstance>> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)
         {
             Result<EntityInstance> result = await EIS.CreateInstanceAsync(entityId, newInstance);
             if (result.IsSuccess)
-                CS.EntityInstancesCache.Add(entityId, result.Value.Id, result.Value);
+                CS.AddInstance(result.Value);
             return result;
         }
         public async Task<Result> UpdateInstanceAsync(Guid instanceId, UpdateInstanceDto updateDto)
         {
             Result result = await EIS.UpdateInstanceAsync(instanceId, updateDto);
-            if (result.IsSuccess && CS.EntityInstancesCache.TryGetValue(instanceId, out EntityInstance? instance))
+            if (result.IsSuccess && CS.TryGetInstance(instanceId, out EntityInstance? instance))
                 instance.Data = updateDto.Data;
             return result;
         }

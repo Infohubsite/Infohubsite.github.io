@@ -1,89 +1,130 @@
 ﻿using Frontend.Models.Converted;
+using Microsoft.AspNetCore.WebUtilities;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Frontend.Services
 {
     public interface ICacheService
     {
-        Dictionary<Guid, EntityDefinition> EntityDefinitionCache { get; set; }
-        Dictionary<Guid, Guid, EntityInstance> EntityInstancesCache { get; set; }
+        void UpsertDefinition(EntityDefinition definition);
+        void UpsertDefinitions(IEnumerable<EntityDefinition> definitions);
+        bool RemoveDefinition(Guid definitionId);
+        void RemoveDefinitions();
+        IEnumerable<EntityDefinition> GetDefinitions();
+        bool TryGetDefinition(Guid definitionId, [MaybeNullWhen(false)] out EntityDefinition definition);
+
+
+        void AddInstance(EntityInstance instance);
+        void AddInstances(IEnumerable<EntityInstance> instances);
+        bool RemoveInstance(Guid instanceId);
+        bool RemoveInstances(Guid definitionId);
+        IEnumerable<EntityInstance> GetInstances(Guid definitionId);
+        bool TryGetInstance(Guid instanceId, [MaybeNullWhen(false)] out EntityInstance instance);
     }
     public class CacheService : ICacheService
     {
-        public Dictionary<Guid, EntityDefinition> EntityDefinitionCache { get; set; } = [];
-        public Dictionary<Guid, Guid, EntityInstance> EntityInstancesCache { get; set; } = new();
+        private readonly Dictionary<Guid, EntityDefinition> _definitions = [];
+        private readonly GroupedCache<Guid, Guid, EntityInstance> _instances = new((i) => i.EntityDefinitionId, (i) => i.Id);
+
+        public void UpsertDefinition(EntityDefinition definition) => _definitions[definition.Id] = definition;
+        public void UpsertDefinitions(IEnumerable<EntityDefinition> definitions)
+        {
+            foreach (EntityDefinition def in definitions)
+                UpsertDefinition(def);
+        }
+        public bool RemoveDefinition(Guid definitionId)
+        {
+            bool rem = _definitions.Remove(definitionId);
+            if (rem)
+                _instances.RemoveGroup(definitionId);
+            return rem;
+        }
+        public void RemoveDefinitions() => _definitions.Clear();
+        public IEnumerable<EntityDefinition> GetDefinitions() => _definitions.Values;
+        public bool TryGetDefinition(Guid definitionId, [MaybeNullWhen(false)] out EntityDefinition definition) => _definitions.TryGetValue(definitionId, out definition);
+
+        public void AddInstance(EntityInstance instance) => _instances.Add(instance);
+        public void AddInstances(IEnumerable<EntityInstance> instances)
+        {
+            foreach (EntityInstance instance in instances)
+                AddInstance(instance);
+        }
+        public bool RemoveInstance(Guid instanceId) => _instances.Remove(instanceId);
+        public bool RemoveInstances(Guid definitionId) => _instances.RemoveGroup(definitionId);
+        public IEnumerable<EntityInstance> GetInstances(Guid id) => _instances.GetGroup(id);
+        public bool TryGetInstance(Guid instanceId, [MaybeNullWhen(false)] out EntityInstance instance) => _instances.TryGetValue(instanceId, out instance);
     }
-    public class Dictionary<TKeyA, TKeyB, TValue> where TKeyA : notnull where TKeyB : notnull
+
+    public class GroupedCache<TGroupKey, TKey, TValue>(Func<TValue, TGroupKey> groupKeySelector, Func<TValue, TKey> keySelector) where TGroupKey : notnull where TKey : notnull
     {
-        private readonly Dictionary<TKeyA, List<TValue>> _dictA = [];
-        private readonly Dictionary<TKeyB, (TKeyA KeyA, TValue Value)> _dictB = [];
+        private readonly Dictionary<TGroupKey, HashSet<TKey>> _groups = [];
+        private readonly Dictionary<TKey, TValue> _items = [];
 
-        public int Count => _dictB.Count;
-        public ICollection<TKeyA> KeysA => _dictA.Keys;
-        public ICollection<TKeyB> KeysB => _dictB.Keys;
-        public ICollection<TValue> Values => [.. _dictB.Values.Select(x => x.Value)];
+        private readonly Func<TValue, TGroupKey> _groupKeySelector = groupKeySelector;
+        private readonly Func<TValue, TKey> _keySelector = keySelector;
 
-        public void Add(TKeyA keyA, TKeyB keyB, TValue value)
+        public int Count => _items.Count;
+        public ICollection<TKey> Keys => _items.Keys;
+        public ICollection<TValue> Values => _items.Values;
+
+        public void Add(TValue value)
         {
-            if (_dictB.ContainsKey(keyB))
-                throw new ArgumentException("An item with the same unique key (KeyB) already exists.", nameof(keyB));
+            TKey key = _keySelector(value);
+            TGroupKey groupKey = _groupKeySelector(value);
 
-            _dictB.Add(keyB, (keyA, value));
+            _items.Add(key, value);
 
-            if (!_dictA.TryGetValue(keyA, out List<TValue>? list))
+            if (!_groups.TryGetValue(groupKey, out HashSet<TKey>? groupList))
             {
-                list = [];
-                _dictA.Add(keyA, list);
+                groupList = [];
+                _groups.Add(groupKey, groupList);
             }
-            list.Add(value);
+            groupList.Add(key);
         }
-        public void AddRange(IEnumerable<(TKeyA keyA, TKeyB keyB, TValue value)> adds)
+        public void AddRange(IEnumerable<TValue> values)
         {
-            foreach ((TKeyA keyA, TKeyB keyB, TValue value) in adds)
-                Add(keyA, keyB, value);
+            foreach (TValue value in values)
+                Add(value);
         }
 
-        public bool TryGetValue(TKeyA keyA, [MaybeNullWhen(false)] out List<TValue> values) => _dictA.TryGetValue(keyA, out values);
-        public bool TryGetValue(TKeyB keyB, [MaybeNullWhen(false)] out TValue value)
+        public bool TryGetValue(TKey key, [MaybeNullWhen(false)] out TValue value) => _items.TryGetValue(key, out value);
+        public IEnumerable<TValue> GetGroup(TGroupKey groupKey)
         {
-            bool ret = _dictB.TryGetValue(keyB, out (TKeyA KeyA, TValue Value) entry);
-            value = entry.Value;
-            return ret;
+            if (_groups.TryGetValue(groupKey, out HashSet<TKey>? keys))
+                foreach (var key in keys)
+                    if (_items.TryGetValue(key, out TValue? val))
+                        yield return val;
         }
-        public bool Removes(TKeyA keyA)
+        public bool Remove(TKey key)
         {
-            if (!_dictA.TryGetValue(keyA, out List<TValue>? valuesToRemove)) return false;
+            if (!_items.TryGetValue(key, out TValue? value)) return false;
 
-            foreach (TKeyB keyB in _dictB
-                .Where(kvp => kvp.Value.KeyA.Equals(keyA))
-                .Select(kvp => kvp.Key))
-                _dictB.Remove(keyB);
+            _items.Remove(key);
 
-            _dictA.Remove(keyA);
-
-            return true;
-        }
-        public bool Remove(TKeyB keyB)
-        {
-            if (!_dictB.TryGetValue(keyB, out (TKeyA KeyA, TValue Value) entry)) return false;
-
-            _dictB.Remove(keyB);
-
-            if (_dictA.TryGetValue(entry.KeyA, out List<TValue>? list))
+            TGroupKey groupKey = _groupKeySelector(value);
+            if (_groups.TryGetValue(groupKey, out HashSet<TKey>? groupList))
             {
-                list.Remove(entry.Value);
-                if (list.Count == 0)
-                    _dictA.Remove(entry.KeyA);
+                groupList.Remove(key);
+                if (groupList.Count == 0)
+                    _groups.Remove(groupKey);
             }
 
             return true;
         }
-        public bool ContainsList(TKeyA keyA) => _dictA.ContainsKey(keyA);
-        public bool Contains(TKeyB keyB) => _dictB.ContainsKey(keyB);
+        public bool RemoveGroup(TGroupKey groupKey)
+        {
+            if (!_groups.TryGetValue(groupKey, out HashSet<TKey>? keysToRemove)) return false;
+
+            foreach (TKey key in keysToRemove)
+                _items.Remove(key);
+
+            _groups.Remove(groupKey);
+            return true;
+        }
         public void Clear()
         {
-            _dictA.Clear();
-            _dictB.Clear();
+            _groups.Clear();
+            _items.Clear();
         }
     }
 }
