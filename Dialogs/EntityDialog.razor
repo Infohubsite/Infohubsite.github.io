@@ -3,161 +3,89 @@
 
 <MudDialog>
     <DialogContent>
-        @if (error != null)
-        {
-            <MudAlert Severity="Severity.Error" Class="my-2">@error</MudAlert>
-        }
-
-        <MudForm @ref="form" @bind-IsValid="valid" Class="mt-4">
-            <MudTextField @bind-Value="model.Name" Label="Entity Name" For="@(() => model.Name)" />
+        <ErrorDisplay DisplayAnyway="true" Errors="_errors">
+            <MudForm @ref="_form" @bind-IsValid="_valid" Class="mt-4">
+                <MudTextField @bind-Value="_model.Name" Label="Entity Name" For="@(() => _model.Name)" />
+            </MudForm>
 
             <MudText Typo="Typo.h6" Class="mt-6 mb-2">Fields</MudText>
 
-            @foreach (FieldDefinitionI field in model.Fields)
-            {
-                <MudPaper Outlined="true" Class="d-flex align-center pa-2 mb-2">
-                    <MudText Style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        <strong>@field.Name</strong>
-                        @if (field.IsRequired)
-                        {
-                            <span style="color: red;">*</span>
-                        }
-                    </MudText>
-                    <MudText Style="margin: 5px;">
-                        @((field.IsList ? "[" : "(") + (field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType) + (field.IsList ? "]" : ")"))
-                    </MudText>
-                    <MudSpacer />
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Variant="Variant.Outlined" OnClick="() => RemoveField(field)" Disabled="editing"/> @*remove disabling when editing fields is implemented*@
-                </MudPaper>
-            }
-        </MudForm>
-
-        @if (!editing) // remove when editing fields is implemeneted
-        {
-            <MudPaper Outlined="true" Class="pa-4 mt-4">
-                <MudForm @ref="fieldForm" @bind-IsValid="fieldValid">
-
-                    <MudText Typo="Typo.subtitle1" GutterBottom="true">Add a new field</MudText>
-                    <MudTextField @bind-Value="newField.Name" Label="Field name" For="@(() => newField.Name)" Immediate="true" />
-                    <MudSelect @bind-Value="newField.DataType" Label="Data Type" Class="my-2">
-                        @foreach (DataType type in Enum.GetValues(typeof(DataType)))
-                        {
-                            <MudSelectItem Value="type">@type.ToString()</MudSelectItem>
-                        }
-                    </MudSelect>
-
-                    <MudCheckBox T="bool" @bind-Value="newField.IsRequired" Label="Is Required" Color="Color.Primary" />
-                    <MudCheckBox T="bool" @bind-Value="newField.IsList" Label="Is List" Color="Color.Primary" />
-
-                    @if (newField.DataType == DataType.EntityReference)
-                    {
-                        <MudSelect @bind-Value="newField.ReferenceTargetEntityDefinitionId" Label="Reference Target" Required="true" RequiredError="Target is required for entity reference">
-                            @foreach (EntityDefinition entityDef in AllEntityDefinitions)
-                            {
-                                <MudSelectItem Value="@((Guid?)entityDef.Id)">@entityDef.Name</MudSelectItem>
-                            }
-                        </MudSelect>
-                    }
-
-                    <MudButton OnClick="AddField" Variant="Variant.Outlined" Color="Color.Tertiary" Class="mt-2" Disabled="@(string.IsNullOrWhiteSpace(newField.Name))">Add Field</MudButton>
-                </MudForm>
-            </MudPaper>
-        }
+            <FieldEditor Fields="_model.Fields" Editing="_isEditing" />
+        </ErrorDisplay>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled">@ButtonText</MudButton>
+        <MudButton OnClick="Submit" Color="Color.Primary" Variant="Variant.Filled">@(_isEditing ? "Edit" : "Create")</MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
-    [CascadingParameter]
-    IMudDialogInstance MudDialog { get; set; } = default!;
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public SortedSet<EntityDefinition> AllEntityDefinitions { get; set; } = [];
     [Parameter] public EntityDefinition? CurrentEntity { get; set; }
-    [Parameter] public string ButtonText { get; set; } = string.Empty;
 
-    private MudForm form = default!;
-    private MudForm fieldForm = default!;
+    private List<EntityDefinition> _entityDefinitions = [];
 
-    private bool valid, fieldValid, editing;
-    private string? error;
+    private MudForm _form = default!;
+    private bool _valid;
+    private bool _isEditing;
+    private List<string> _errors = [];
+    private EntityDefinitionI _model = new();
 
-    private EntityDefinitionI model = new();
-    private FieldDefinitionI newField = new();
-
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         if (CurrentEntity != null)
         {
-            editing = true;
-            model.Name = CurrentEntity.Name;
-            model.Fields = CurrentEntity.Fields.ConvertAll(x => new FieldDefinitionI()
-            {
-                Name = x.Name,
-                DataType = x.DataType,
-                IsRequired = x.IsRequired,
-                IsList = x.IsList,
-                ReferenceTargetEntityDefinitionId = x.ReferenceTargetEntityDefinitionId
-            });
+            _isEditing = true;
+            _model.Name = CurrentEntity.Name;
+            _model.Fields = CurrentEntity.Fields.Select(f => new FieldDefinitionI(f)).ToList();
         }
-    }
 
-    private async Task AddField()
-    {
-        error = null;
-        await fieldForm.Validate();
-        if (!fieldValid) return;
-
-        if (model.Fields.Any(f => f.Name.Equals(newField.Name, StringComparison.OrdinalIgnoreCase)))
+        Result<List<EntityDefinition>> result = await EDS.GetEntityDefinitionsAsync();
+        if (result.IsSuccess)
+            _entityDefinitions = result.Value;
+        else
         {
-            error = "A field with the same name already exists";
-            return;
+            _errors.Add("Failed to load entity definitions.");
+            throw new HttpRequestException("Failed to load entity defintions.");
         }
-
-        model.Fields.Add(newField);
-        newField = new();
-    }
-
-    private void RemoveField(FieldDefinitionI field) => model.Fields.Remove(field);
-    
-    private string GetEntityNameById(Guid? entityId)
-    {
-        if (entityId == null)
-            return "N/A";
-        return AllEntityDefinitions.FirstOrDefault(e => e.Id == entityId)?.Name ?? "Unknown";
     }
 
     private async Task Submit()
     {
-        error = null;
+        _errors = [];
+        await _form.Validate();
+        if (!_valid) return;
 
-        await form.Validate();
-        if (!valid) return;
-
-        if (AllEntityDefinitions.Any(s => s.Name == model.Name && s.Id != CurrentEntity?.Id))
+        if (_entityDefinitions.Any(s => s.Name.Equals(_model.Name, StringComparison.OrdinalIgnoreCase) && s.Id != CurrentEntity?.Id))
         {
-            error = "An Entity Definiton with the same name already exists";
+            _errors.Add("An Entity Definition with the same name already exists.");
             return;
         }
 
-        if (CurrentEntity != null)
+        if (_isEditing && CurrentEntity != null)
         {
-            if (!(await EDS.UpdateEntityAsync(CurrentEntity.Id, model)).IsSuccess)
+            Result result = await EDS.UpdateEntityAsync(CurrentEntity.Id, _model);
+            if (!result.IsSuccess)
+            {
+                _errors.Add(result.Exception?.Message ?? "Failed to update entity.");
                 return;
+            }
 
-            await NS.Show($"Successfully renamed the Entity Definition to '{model.Name}'", Severity.Success);
-            MudDialog.Close(DialogResult.Ok(model.Name));
+            await NS.Show($"Successfully renamed Entity Definition to '{_model.Name}.'", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(_model.Name));
         }
         else
         {
-            Result<EntityDefinition> entityDefinition = await EDS.CreateEntityAsync(model);
-            if (!entityDefinition.IsSuccess)
+            Result<EntityDefinition> result = await EDS.CreateEntityAsync(_model);
+            if (!result.IsSuccess)
+            {
+                _errors.Add(result.Exception?.Message ?? "Failed to create entity.");
                 return;
+            }
 
-            await NS.Show($"Successfully added Entity Definition '{model.Name}'", Severity.Success);
-            MudDialog.Close(DialogResult.Ok(entityDefinition));
+            await NS.Show($"Successfully added Entity Definition '{_model.Name}'.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(result.Value));
         }
     }
 

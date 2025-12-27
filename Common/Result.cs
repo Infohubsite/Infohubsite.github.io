@@ -100,7 +100,7 @@ namespace Frontend.Common
         protected static async Task<string> ParseErrorResponse(HttpResponseMessage response)
         {
             string raw = await response.Content.ReadAsStringAsync();
-            if (string.IsNullOrEmpty(raw)) return "The server returned an empty error response.";
+            if (string.IsNullOrEmpty(raw)) return "";
 
             try
             {

@@ -76,8 +76,8 @@
 
         if (!Guid.TryParse(EntityIdstr, out Guid entityId))
         {
-            await NS.Show($"'{EntityIdstr}' is not a valid ID");
-            errors.Add($"Failed to get instance ID from the URL");
+            await NS.Show($"'{EntityIdstr}' is not a valid ID.");
+            errors.Add($"Failed to get instance ID from the URL.");
             return errors;
         }
         EntityId = entityId;
@@ -85,7 +85,7 @@
         Result<EntityDefinition> defResult = await EDS.GetEntityDefinitionAsync(EntityId);
         if (!defResult.IsSuccess)
         {
-            errors.Add("Failed to get entity definition");
+            errors.Add("Failed to get entity definition.");
             return errors;
         }
         _entityDefinition = defResult.Value;
@@ -104,11 +104,11 @@
         }
         else if (instResult.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            await NS.Show("Could not find entity definition in database", Severity.Warning);
+            await NS.Show("Could not find entity definition in database.", Severity.Warning);
             NM.NavigateTo("/");
         }
         else
-            errors.Add(instResult.Exception == null ? "Failed to get entity instances" : instResult.Exception.Message);
+            errors.Add(instResult.Exception == null ? "Failed to get entity instances." : instResult.Exception.Message);
 
         return errors;
     }
@@ -184,7 +184,7 @@
                             return result.IsSuccess;
                         else
                         {
-                            await NS.Show("Instance not found", Severity.Warning);
+                            await NS.Show("Instance not found.", Severity.Warning);
                             await _dataLoader.Refresh(true);
                             return true;
                         }
@@ -213,7 +213,7 @@
                 return false;
                 }
             },
-            { x => x.ErrorMessage, "Failed to delete the entity instance"}
+            { x => x.ErrorMessage, "Failed to delete the entity instance."}
         };
 
         IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Confirm Deletion", parameters, options);
@@ -226,7 +226,7 @@
             if (_entityInstances.Contains(context) == true)
                 _entityInstances.Remove(context);
             Filter();
-            await NS.Show($"Successfully deleted the instance", Severity.Success);
+            await NS.Show($"Successfully deleted the instance.", Severity.Success);
         }
     }
 }

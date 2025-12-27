@@ -5,22 +5,12 @@
 @inject NavigationManager NM
 
 <PageTitle>Entity Definitions</PageTitle>
-
 <MudText Typo="Typo.h6">Entity Definitions</MudText>
 
-@if (error != null)
-{
-    <MudAlert Severity="Severity.Error">@error</MudAlert>
-}
-@if (loading && error == null)
-{
-    <MudProgressCircular Color="Color.Default" Indeterminate="true" />
-}
-else if (entityDefinitions != null)
-{
-    <MudTable Items="entityDefinitions" Hover="true" Bordered="true" OnRowClick="(TableRowClickEventArgs<EntityDefinition> args) => OpenInstance(args)" Breakpoint="Breakpoint.None" Style="white-space: nowrap;">
+<DataLoaderT @ref="_dataLoader" TArg="bool" LoadAction="LoadDefinitions">
+    <MudTable Items="entityDefinitions" Hover="true" Bordered="true" OnRowClick="@((TableRowClickEventArgs<EntityDefinition> args) => { if (args.Item != null) NM.NavigateTo($"/Entities/{args.Item.Id}"); } )" Breakpoint="Breakpoint.None" Style="white-space: nowrap;">
         <ToolBarContent>
-            <MudIconButton OnClick="() => Load(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
+            <MudIconButton OnClick="() => _dataLoader.Refresh(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
             <AuthorizeView Roles="admin">
                 <MudSpacer />
                 <MudButton OnClick="() => OpenEntityDialog()" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Create Entity</MudButton>
@@ -54,40 +44,22 @@ else if (entityDefinitions != null)
             <MudTablePager />
         </PagerContent>
     </MudTable>
-}
+</DataLoaderT>
 
 @code {
-    private SortedSet<EntityDefinition>? entityDefinitions;
-    private string? error;
-    private bool loading;
+    private DataLoaderT<bool> _dataLoader = null!;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    private SortedSet<EntityDefinition> entityDefinitions = [];
 
-    private async Task Load(bool refresh = false)
+    private async Task<List<string>> LoadDefinitions(bool refresh, bool reload)
     {
-        error = null;
-        loading = true;
-        Result<List<EntityDefinition>> entities = await EDS.GetEntityDefinitionsAsync(refresh);
+        List<string> errors = [];
+        Result<List<EntityDefinition>> entities = await EDS.GetEntityDefinitionsAsync(reload);
         if (!entities.IsSuccess)
-            error = "Failed to get entity definitions";
+            errors.Add("Failed to get entity definitions.");
         else
             entityDefinitions = new(entities.Value);
-        loading = false;
-    }
-
-    private void OpenInstance(TableRowClickEventArgs<EntityDefinition> args)
-    {
-        if (args.Item == null)
-            return;
-
-        NM.NavigateTo($"/Entities/{args.Item.Id}");
-    }
-
-    private string GetEntityNameById(Guid? entityId)
-    {
-        if (entityId == null)
-            return "N/A";
-        return entityDefinitions?.FirstOrDefault(e => e.Id == entityId)?.Name ?? "Unknown";
+        return errors;
     }
 
     // ADMIN //
@@ -95,9 +67,7 @@ else if (entityDefinitions != null)
     {
         DialogParameters<EntityDialog> parameters = new()
         {
-            { x => x.AllEntityDefinitions, entityDefinitions ?? new() },
-            { x => x.CurrentEntity, context },
-            { x => x.ButtonText, context == null ? "Create" : "Edit" }
+            { x => x.CurrentEntity, context }
         };
         DialogOptions options = new()
         {
@@ -113,11 +83,11 @@ else if (entityDefinitions != null)
 
         if (context == null)
         {
-            Result<EntityDefinition>? newEntity = result.Data as Result<EntityDefinition>;
-            if (newEntity == null || !newEntity.IsSuccess)
+            EntityDefinition? newEntity = result.Data as EntityDefinition;
+            if (newEntity == null)
                 return;
 
-            entityDefinitions?.Add(newEntity.Value);
+            entityDefinitions.Add(newEntity);
         }
         else
         {
@@ -160,8 +130,8 @@ else if (entityDefinitions != null)
 
         if (result.Data is bool && (bool)result.Data)
         {
-            entityDefinitions?.Remove(context);
-            await NS.Show($"Successfully deleted the '{context.Name}' entity", Severity.Success);
+            entityDefinitions.Remove(context);
+            await NS.Show($"Successfully deleted Entity Definition '{context.Name}'.", Severity.Success);
         }
     }
 }

@@ -1,0 +1,101 @@
+﻿@inject IEntityDefinitionService EDS
+
+<ErrorDisplay DisplayAnyway="true" Errors="_errors">
+    @foreach (FieldDefinitionI field in Fields)
+    {
+        <MudPaper Outlined="true" Class="d-flex align-center pa-2 mb-2">
+            <MudText Style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <strong>@field.Name</strong>
+                @if (field.IsRequired)
+                {
+                    <span style="color: red;">*</span>
+                }
+            </MudText>
+            <MudText Style="margin: 5px;">
+                @((field.IsList ? "[" : "(") + (field.DataType == DataType.EntityReference ? $"Entity: {GetEntityNameById(field.ReferenceTargetEntityDefinitionId)}" : field.DataType) + (field.IsList ? "]" : ")"))
+            </MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Variant="Variant.Outlined" OnClick="() => RemoveField(field)" Disabled="Editing" /> @*remove disabling when editing fields is implemented*@
+        </MudPaper>
+    }
+
+    @if (!Editing) // TODO: remove when editing fields is implemeneted (and finally implement editing)
+    {
+        <MudPaper Outlined="true" Class="pa-4 mt-4">
+            <MudForm @ref="_fieldForm" @bind-IsValid="_fieldValid">
+
+                <MudText Typo="Typo.subtitle1" GutterBottom="true">Add a new field</MudText>
+                <MudTextField @bind-Value="_newField.Name" Label="Field name" For="@(() => _newField.Name)" Immediate="true" />
+                <MudSelect @bind-Value="_newField.DataType" Label="Data Type" Class="my-2">
+                    @foreach (DataType type in Enum.GetValues(typeof(DataType)))
+                    {
+                        <MudSelectItem Value="type">@type.ToString()</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudCheckBox T="bool" @bind-Value="_newField.IsRequired" Label="Is Required" Color="Color.Primary" />
+                <MudCheckBox T="bool" @bind-Value="_newField.IsList" Label="Is List" Color="Color.Primary" />
+
+                @if (_newField.DataType == DataType.EntityReference)
+                {
+                    <MudSelect @bind-Value="_newField.ReferenceTargetEntityDefinitionId" Label="Reference Target" Required="true" RequiredError="Target is required for entity reference">
+                        @foreach (EntityDefinition entityDef in _entityDefinitions)
+                        {
+                            <MudSelectItem Value="@((Guid?)entityDef.Id)">@entityDef.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+
+                <MudButton OnClick="AddField" Variant="Variant.Outlined" Color="Color.Tertiary" Class="mt-2" Disabled="@(string.IsNullOrWhiteSpace(_newField.Name))">Add Field</MudButton>
+            </MudForm>
+        </MudPaper>
+    }
+</ErrorDisplay>
+
+    @code {
+    [Parameter, EditorRequired] public List<FieldDefinitionI> Fields { get; set; }
+    [Parameter] public bool Editing { get; set; }
+
+    private List<EntityDefinition> _entityDefinitions = [];
+
+    private MudForm _fieldForm = default!;
+    private bool _fieldValid;
+    private List<string> _errors = [];
+    private FieldDefinitionI _newField = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Result<List<EntityDefinition>> result = await EDS.GetEntityDefinitionsAsync();
+        if (result.IsSuccess)
+            _entityDefinitions = result.Value;
+        else
+        {
+            _errors.Add("Failed to load entity definitions.");
+            throw new HttpRequestException("Failed to load entity defintions.");
+        }
+    }
+
+    private async Task AddField()
+    {
+        _errors = [];
+        await _fieldForm.Validate();
+        if (!_fieldValid) return;
+
+        if (Fields.Any(f => f.Name.Equals(_newField.Name, StringComparison.OrdinalIgnoreCase)))
+        {
+            _errors.Add("A field with the same name already exists.");
+            return;
+        }
+
+        Fields.Add(_newField);
+        _newField = new();
+    }
+
+    private void RemoveField(FieldDefinitionI field) => Fields.Remove(field);
+
+    private string GetEntityNameById(Guid? entityId)
+    {
+        if (entityId == null) return "N/A";
+        return _entityDefinitions.FirstOrDefault(e => e.Id == entityId)?.Name ?? "Unknown";
+    }
+}
