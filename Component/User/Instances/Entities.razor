@@ -1,139 +1,122 @@
 ﻿@page "/Entities/{EntityIdstr}"
-@inject ICacheService CS
 @inject IEntityInstanceService EIS
 @inject IEntityDefinitionService EDS
 @inject IDialogService DS
 @inject INotificationService NS
 @inject NavigationManager NM
 
-@if (entityDefinition == null)
-{
-    <PageTitle>Instances</PageTitle>
-    <MudText Typo="Typo.h6">Instances</MudText>
-}
-else
-{
-    <PageTitle>Instances of @entityDefinition.Name</PageTitle>
-    <MudText Typo="Typo.h6">Instances of @entityDefinition.Name</MudText>
-}
-
-@if (errors.Count() > 0)
-{
-    foreach (string error in errors)
-    {
-        <MudAlert Severity="Severity.Error">@error</MudAlert>
-    }
-}
-
-@if (loading && errors.Count() == 0)
-{
-    <MudProgressCircular Color="Color.Default" Indeterminate="true" />
-}
-else if (entityInstances != null && !locked)
-{
-    if (entityDefinition?.Fields != null)
-    {
-        <MudTable Items="entityDefinition?.Fields" Dense="true" Class="mb-4">
-            <RowTemplate>
-                <MudTd>
-                    <FieldTypeDisplay field="context" />
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
-    }
-
-    <MudTable Items="filteredEntityInstances" Bordered="true" Breakpoint="Breakpoint.None" Style="white-space: nowrap;" OnRowClick="(TableRowClickEventArgs<EntityInstance> args) => OpenInstance(args)">
-        <ToolBarContent>
-            <MudIconButton OnClick="@(() => NM.NavigateTo("/"))" Icon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Secondary" Style="margin: 0px 10px 0px 0px;" />
-            <MudIconButton OnClick="() => Load(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
-            <MudSpacer />
-            <MudTextField @bind-Value="searchString" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Small" Class="ml-4" DebounceInterval="100" OnDebounceIntervalElapsed="Filter" />
-            <MudSpacer />
-            <MudButton OnClick="() => OpenInstanceDialog()" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Create Instance</MudButton>
-        </ToolBarContent>
-        <HeaderContent>
-            <MudTh>Fields</MudTh>
-            <MudTh Style="width: 1%;">Actions</MudTh>
-        </HeaderContent>
-        <RowTemplate>
-            <MudTd DataLabel="Fields" Style="max-width: 1px;">
-                <MudStack Row="true" Spacing="3" Class="mud-typography-body1" Style="overflow: hidden;">
-                    @foreach (KeyValuePair<string, object?> field in context.Data)
-                    {
-                        <div>
-                            <strong>@field.Key:</strong>
-                            <FieldValueDisplay Value="@field.Value" />
-                        </div>
-                    }
-                </MudStack>
-            </MudTd>
-            <MudTd DataLabel="Actions" Style="width: 1%;">
-                <MudIconButton OnClick="@(async () => await OpenInstanceDialog(context))" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
-                <MudIconButton OnClick="() => OpenDeleteDialog(context)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
-            </MudTd>
-        </RowTemplate>
-    </MudTable>
-}
+<DataLoader LoadAction="LoadDefinition">
+    <Loading>
+        <PageTitle>Instances</PageTitle>
+        <MudText Typo="Typo.h6">Instances</MudText>
+    </Loading>
+    <Loaded>
+        <PageTitle>Instances of @_entityDefinition!.Name</PageTitle>
+        <MudText Typo="Typo.h6">Instances of @_entityDefinition!.Name</MudText>
+        @if (_entityDefinition?.Fields != null)
+        {
+            <MudTable Items="_entityDefinition?.Fields.OrderBy((f) => f.Name)" Dense="true" Class="mb-4">
+                <RowTemplate>
+                    <MudTd>
+                        <FieldTypeDisplay field="context" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+        <DataLoaderT @ref="_dataLoader" TArg="bool" LoadAction="LoadInstances">
+            <MudTable Items="_filteredEntityInstances" Bordered="true" Hover="true" Breakpoint="Breakpoint.None" Style="white-space: nowrap;" OnRowClick="(TableRowClickEventArgs<EntityInstance> args) => OpenInstance(args)">
+                <ToolBarContent>
+                    <MudIconButton OnClick="@(() => NM.NavigateTo("/"))" Icon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Secondary" Style="margin: 0px 10px 0px 0px;" />
+                    <MudIconButton OnClick="() => _dataLoader.Refresh(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
+                    <MudSpacer />
+                    <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Small" Class="ml-4" DebounceInterval="100" OnDebounceIntervalElapsed="Filter" />
+                    <MudSpacer />
+                    <MudButton OnClick="() => OpenInstanceDialog()" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Create Instance</MudButton>
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Fields</MudTh>
+                    <MudTh Style="width: 1%;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Fields" Style="max-width: 1px;">
+                        <MudStack Row="true" Spacing="3" Class="mud-typography-body1" Style="overflow: hidden;">
+                            @foreach (KeyValuePair<string, object?> field in context.Data)
+                            {
+                                <div>
+                                    <strong>@field.Key:</strong>
+                                    <FieldValueDisplay Value="@field.Value" />
+                                </div>
+                            }
+                        </MudStack>
+                    </MudTd>
+                    <MudTd DataLabel="Actions" Style="width: 1%;">
+                        <MudIconButton OnClick="@(async () => await OpenInstanceDialog(context))" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
+                        <MudIconButton OnClick="() => OpenDeleteDialog(context)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </DataLoaderT>
+    </Loaded>
+</DataLoader>
 
 @code {
     [Parameter] public string EntityIdstr { get; set; } = string.Empty;
     private Guid EntityId;
 
-    private List<EntityInstance>? entityInstances;
-    private List<EntityInstance>? filteredEntityInstances;
-    private EntityDefinition? entityDefinition;
-    private List<string> errors = [];
-    private bool loading = true, locked = false;
-    private string searchString = string.Empty;
+    private DataLoaderT<bool> _dataLoader = null!;
 
-    protected override async Task OnParametersSetAsync()
+    private List<EntityInstance>? _entityInstances;
+    private List<EntityInstance>? _filteredEntityInstances;
+    private EntityDefinition? _entityDefinition;
+    private string _searchString = string.Empty;
+
+    private async Task<List<string>> LoadDefinition(bool refresh)
     {
-        if (!Guid.TryParse(EntityIdstr, out Guid parsedGuid))
+        List<string> errors = [];
+
+        if (!Guid.TryParse(EntityIdstr, out Guid entityId))
         {
-            locked = true;
-            loading = false;
             await NS.Show($"'{EntityIdstr}' is not a valid ID");
-            errors.Add($"Failed to get instance ID from the URL.");
-            return;
+            errors.Add($"Failed to get instance ID from the URL");
+            return errors;
         }
-        EntityId = parsedGuid;
+        EntityId = entityId;
 
-        await Load();
-        Result<EntityDefinition> result = await EDS.GetEntityDefinitionAsync(EntityId);
-        if (!result.IsSuccess)
+        Result<EntityDefinition> defResult = await EDS.GetEntityDefinitionAsync(EntityId);
+        if (!defResult.IsSuccess)
         {
-            locked = true;
             errors.Add("Failed to get entity definition");
+            return errors;
         }
-        else
-            entityDefinition = result.Value;
-    }
+        _entityDefinition = defResult.Value;
 
-    private async Task Load(bool refresh = false)
+        return errors;
+    }
+    private async Task<List<string>> LoadInstances(bool refresh, bool reload)
     {
-        loading = true;
-        Result<List<EntityInstance>> result = await EIS.GetInstancesAsync(EntityId, refresh);
-        if (result.IsSuccess)
+        List<string> errors = [];
+
+        Result<List<EntityInstance>> instResult = await EIS.GetInstancesAsync(EntityId, reload);
+        if (instResult.IsSuccess)
         {
-            entityInstances = result.Value;
+            _entityInstances = instResult.Value;
             Filter();
         }
-        else if (result.StatusCode == System.Net.HttpStatusCode.NotFound)
+        else if (instResult.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            await NS.Show("Could not find entity definition in database. It was probably deleted", Severity.Warning);
-            CS.EntityDefinitionCache.Remove(EntityId);
+            await NS.Show("Could not find entity definition in database", Severity.Warning);
             NM.NavigateTo("/");
         }
         else
-            errors.Add(result.Exception == null ? "Failed to get entity instances" : result.Exception.Message);
+            errors.Add(instResult.Exception == null ? "Failed to get entity instances" : instResult.Exception.Message);
 
-        loading = false;
+        return errors;
     }
 
     private void Filter()
     {
-        if (entityInstances != null)
-            filteredEntityInstances = [.. InstanceUtils.FilterInstances(entityInstances, searchString)];
+        if (_entityInstances != null)
+            _filteredEntityInstances = [.. InstanceUtils.FilterInstances(_entityInstances, _searchString)];
     }
 
     private void OpenInstance(TableRowClickEventArgs<EntityInstance> args)
@@ -141,7 +124,7 @@ else if (entityInstances != null && !locked)
         if (args.Item == null)
             return;
 
-        NM.NavigateTo($"/Instance/{args.Item.Id}");
+        NM.NavigateTo($"/Instances/{args.Item.Id}");
     }
     private async Task OpenInstanceDialog(EntityInstance? context = null)
     {
@@ -160,13 +143,10 @@ else if (entityInstances != null && !locked)
 
         IDialogReference dialog = await DS.ShowAsync<InstanceDialog>(context == null ? "Create New Entity Instance" : "Edit Entity Instance", parameters, options);
         DialogResult? result = await dialog.Result;
-        if (result == null || result.Canceled)
+        if (result == null || result.Canceled || result.Data is not EntityInstance instance)
             return;
 
-        if (result.Data is not EntityInstance instance)
-            return;
-
-        await Load();
+        await _dataLoader.Refresh(false);
 
         if (context == null) await NS.Show("Instance created successfully.", Severity.Success);
         else await NS.Show("Instance updated successfully.", Severity.Success);
@@ -194,7 +174,7 @@ else if (entityInstances != null && !locked)
             { x => x.ButtonColor, Color.Error },
             { x => x.ButtonStartIcon, Icons.Material.Filled.DeleteForever },
             {
-                x => x.OnSubmit,
+            x => x.OnSubmit,
                 async () =>
                 {
                     Result result = await EIS.DeleteInstanceAsync(context.Id);
@@ -205,7 +185,7 @@ else if (entityInstances != null && !locked)
                         else
                         {
                             await NS.Show("Instance not found", Severity.Warning);
-                            await Load(true);
+                            await _dataLoader.Refresh(true);
                             return true;
                         }
                     }
@@ -219,34 +199,34 @@ else if (entityInstances != null && !locked)
                                 <br />
                                 <strong>Are you really sure you want to delete this instance?</strong>
                             </MudText>
-    },
+                        },
                         { x => x.ButtonText, "Force Delete" },
                         { x => x.ButtonColor, Color.Error },
                         { x => x.ButtonStartIcon, Icons.Material.Filled.DeleteForever },
                         { x => x.OnSubmit, async () => (await EIS.DeleteInstanceAsync(context.Id, true)).IsSuccess }
-                    };
+                };
 
-                    IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Force Delete", innerParameters, options);
-                    DialogResult? dresult = await dialog.Result;
-                    if (dresult != null && !dresult.Canceled && dresult.Data != null && dresult.Data is bool)
-                        return (bool)dresult.Data;
-                    return false;
-                }
-            },
+            IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Force Delete", innerParameters, options);
+            DialogResult? dresult = await dialog.Result;
+            if (dresult != null && !dresult.Canceled && dresult.Data != null && dresult.Data is bool)
+                return (bool)dresult.Data;
+            return false;
+        }
+    },
             { x => x.ErrorMessage, "Failed to delete the entity instance"}
         };
 
-        IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Confirm Deletion", parameters, options);
-        DialogResult? result = await dialog.Result;
-        if (result == null || result.Canceled)
-            return;
+IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Confirm Deletion", parameters, options);
+DialogResult? result = await dialog.Result;
+if (result == null || result.Canceled)
+    return;
 
-        if (result.Data is bool && (bool)result.Data)
-        {
-            if (entityInstances?.Contains(context) == true)
-                entityInstances.Remove(context);
-            Filter();
-            await NS.Show($"Successfully deleted the instance", Severity.Success);
-        }
+if (result.Data is bool && (bool)result.Data)
+{
+    if (_entityInstances?.Contains(context) == true)
+        _entityInstances.Remove(context);
+    Filter();
+    await NS.Show($"Successfully deleted the instance", Severity.Success);
+}
     }
 }
