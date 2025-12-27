@@ -1,0 +1,21 @@
+﻿@if (_isLoading)
+{
+    @Loading
+    if (DisplaySpinner)
+    {
+        <MudProgressCircular Color="Color.Default" Indeterminate="true" />
+    }
+}
+else
+{
+    <ErrorDisplay DisplayAnyway="DisplayAnyway" Errors="_errors">
+        @if (Loaded != null)
+        {
+            @Loaded
+        }
+        else
+        {
+            @ChildContent
+        }
+    </ErrorDisplay>
+}
