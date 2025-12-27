@@ -4,7 +4,7 @@
     {
         <MudAlert Severity="Severity.Error">@error</MudAlert>
     }
-    if (DisplayAnyways)
+    if (DisplayAnyway)
     {
         @ChildContent
     }
@@ -16,6 +16,6 @@ else
 
 @code {
     [Parameter, EditorRequired] public List<string> Errors { get; set; }
-    [Parameter] public bool DisplayAnyways { get; set; } = false;
+    [Parameter] public bool DisplayAnyway { get; set; } = false;
     [Parameter] public RenderFragment? ChildContent { get; set; }
 }
