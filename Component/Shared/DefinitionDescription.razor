@@ -1,0 +1,16 @@
+﻿<MudText Typo="Typo.h6">Instances of @EntityDefinition.Name</MudText>
+@if (EntityDefinition.Fields != null)
+{
+    <MudTable Items="EntityDefinition.Fields.OrderBy((f) => f.Name)" Dense="true" Class="mb-4">
+        <RowTemplate>
+            <MudTd>
+                <FieldTypeDisplay field="context" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code
+{
+    [Parameter, EditorRequired] public EntityDefinition EntityDefinition { get; set; }
+}

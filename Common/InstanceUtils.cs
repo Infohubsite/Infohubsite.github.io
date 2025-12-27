@@ -43,5 +43,31 @@ namespace Frontend.Common
 
             return instances.Where(instance => searchTokens.All(token => string.Join(" ", instance.Data.Select(kvp => $"{kvp.Key} {FormatValue(kvp.Value)}")).Contains(token, StringComparison.InvariantCultureIgnoreCase)));
         }
+
+        public static string GetDisplayName(EntityInstance instance)
+        {
+            if (instance.Data == null) return instance.Id.ToString();
+            if (instance.Data.Count == 0) return "(no data)";
+
+            string? displayNameKey = instance.Data.Keys.FirstOrDefault(k => k.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                              ?? instance.Data.Keys.FirstOrDefault(k => k.Equals("Title", StringComparison.OrdinalIgnoreCase));
+
+            if (displayNameKey != null && instance.Data.TryGetValue(displayNameKey, out var displayNameValue) && displayNameValue != null)
+                return FormatValue(displayNameValue);
+
+            string? displayName = instance.Data
+                .Where(kvp => kvp.Value is JsonElement je && je.ValueKind == JsonValueKind.String && !Guid.TryParse(je.GetString(), out _))
+                .Select(kvp => kvp.Value?.ToString())
+                .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+            if (!string.IsNullOrWhiteSpace(displayName)) return displayName;
+
+            string? concatenatedProperties = string.Join(" | ", instance.Data
+                .Where(kvp => kvp.Value != null && !(kvp.Value is JsonElement je && je.ValueKind == JsonValueKind.Null))
+                .Take(3)
+                .Select(kvp => $"{kvp.Key}: {FormatValue(kvp.Value)}"));
+
+            return !string.IsNullOrWhiteSpace(concatenatedProperties) ? concatenatedProperties : instance.Id.ToString();
+        }
     }
 }

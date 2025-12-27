@@ -1,0 +1,99 @@
+﻿@page "/Instances/{InstanceIdstr}"
+@inject INotificationService NS
+@inject IEntityDefinitionService EDS
+@inject IEntityInstanceService EIS
+@inject NavigationManager NM
+
+<DataLoaderT @ref="_dataLoader" TArg="bool" LoadAction="LoadInstance">
+    <Loading>
+        <PageTitle>Instance</PageTitle>
+    </Loading>
+    <Loaded>
+        <PageTitle>@InstanceUtils.GetDisplayName(_entityInstance)</PageTitle>
+        <DataLoader LoadAction="LoadDefinition">
+            <DefinitionDescription EntityDefinition="_entityDefinition" />
+            <MudCard>
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h5">Viewing Instance of: <strong>@_entityDefinition.Name</strong></MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudSimpleTable Style="width: 100%;" Dense="true" Hover="true">
+                        <tbody>
+                            @foreach (var field in _entityDefinition.Fields.OrderBy(f => f.Name))
+                            {
+                                <tr>
+                                    <td style="font-weight: 500; width: 30%;">@field.Name</td>
+                                    <td>
+                                        @if (_entityInstance.Data.TryGetValue(field.Name, out object? value))
+                                        {
+                                            <FieldValueDisplay Value="value" /> // TODO: add buttons to download and to browse referenced instances and their entity definitions
+                                        }
+                                        else
+                                        {
+                                            <MudText Typo="Typo.caption"><i>(empty)</i></MudText>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudIconButton OnClick="@(() => NM.NavigateTo($"Entities/{_entityDefinition.Id}"))" Icon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Secondary" Style="margin: 0px 10px 0px 0px;" />
+                </MudCardActions>
+            </MudCard>
+        </DataLoader>
+    </Loaded>
+</DataLoaderT>
+
+@code {
+    [Parameter] public string InstanceIdstr { get; set; } = string.Empty;
+    private Guid InstanceId;
+
+    private DataLoaderT<bool> _dataLoader = null!;
+
+    private EntityInstance _entityInstance = null!;
+    private EntityDefinition _entityDefinition = null!;
+
+    private async Task<List<string>> LoadInstance(bool refresh, bool reload)
+    {
+        List<string> errors = [];
+
+        if (!refresh)
+        {
+            if (!Guid.TryParse(InstanceIdstr, out Guid parsedGuid))
+            {
+                await NS.Show($"'{InstanceId}' is not a valid ID.");
+                errors.Add($"Failed to get instance ID from the URL.");
+                return errors;
+            }
+            InstanceId = parsedGuid;
+        }
+
+        Result<EntityInstance> result = await EIS.GetInstanceAsync(InstanceId, reload);
+        if (result.IsSuccess)
+            _entityInstance = result.Value;
+        else
+        {
+            await NS.Show("Could not find entity instance.", Severity.Warning);
+            NM.NavigateTo("/");
+        }
+
+        return errors;
+    }
+
+    private async Task<List<string>> LoadDefinition(bool refresh)
+    {
+        List<string> errors = [];
+
+        Result<EntityDefinition> result = await EDS.GetEntityDefinitionAsync(_entityInstance.EntityDefinitionId);
+        if (result.IsSuccess)
+            _entityDefinition = result.Value;
+        else
+            errors.Add("Could not find entity definition of the instance.");
+
+        return errors;
+    }
+}

@@ -12,17 +12,7 @@
     </Loading>
     <Loaded>
         <PageTitle>Instances of @_entityDefinition.Name</PageTitle>
-        <MudText Typo="Typo.h6">Instances of @_entityDefinition.Name</MudText>
-        @if (_entityDefinition.Fields != null)
-        {
-            <MudTable Items="_entityDefinition.Fields.OrderBy((f) => f.Name)" Dense="true" Class="mb-4">
-                <RowTemplate>
-                    <MudTd>
-                        <FieldTypeDisplay field="context" />
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
-        }
+        <DefinitionDescription EntityDefinition="_entityDefinition" />
         <DataLoaderT @ref="_dataLoader" TArg="bool" LoadAction="LoadInstances">
             <MudTable Items="_filteredEntityInstances" Bordered="true" Hover="true" Breakpoint="Breakpoint.None" Style="white-space: nowrap;" OnRowClick="(TableRowClickEventArgs<EntityInstance> args) => OpenInstance(args)">
                 <ToolBarContent>
