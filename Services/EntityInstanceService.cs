@@ -42,6 +42,10 @@ namespace Frontend.Services
                 CS.EntityInstancesCache.Removes(entityId);
                 CS.EntityInstancesCache.AddRange(result.Value.Select(e => (entityId, e.Id, e)));
             }
+            else
+            {
+                CS.EntityInstancesCache.Removes(entityId);
+            }
             return result;
         }
         public async Task<Result<EntityInstance>> GetInstanceAsync(Guid instanceId, bool refresh = false)
