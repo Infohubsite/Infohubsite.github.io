@@ -11,11 +11,11 @@
         <MudText Typo="Typo.h6">Instances</MudText>
     </Loading>
     <Loaded>
-        <PageTitle>Instances of @_entityDefinition!.Name</PageTitle>
-        <MudText Typo="Typo.h6">Instances of @_entityDefinition!.Name</MudText>
-        @if (_entityDefinition?.Fields != null)
+        <PageTitle>Instances of @_entityDefinition.Name</PageTitle>
+        <MudText Typo="Typo.h6">Instances of @_entityDefinition.Name</MudText>
+        @if (_entityDefinition.Fields != null)
         {
-            <MudTable Items="_entityDefinition?.Fields.OrderBy((f) => f.Name)" Dense="true" Class="mb-4">
+            <MudTable Items="_entityDefinition.Fields.OrderBy((f) => f.Name)" Dense="true" Class="mb-4">
                 <RowTemplate>
                     <MudTd>
                         <FieldTypeDisplay field="context" />
@@ -50,7 +50,7 @@
                         </MudStack>
                     </MudTd>
                     <MudTd DataLabel="Actions" Style="width: 1%;">
-                        <MudIconButton OnClick="@(async () => await OpenInstanceDialog(context))" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
+                        <MudIconButton OnClick="() => OpenInstanceDialog(context)" Icon="@Icons.Material.Filled.Edit" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Class="ma-1" />
                         <MudIconButton OnClick="() => OpenDeleteDialog(context)" Icon="@Icons.Material.Filled.Delete" Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" Class="ma-1" />
                     </MudTd>
                 </RowTemplate>
@@ -65,9 +65,9 @@
 
     private DataLoaderT<bool> _dataLoader = null!;
 
-    private List<EntityInstance>? _entityInstances;
+    private List<EntityInstance> _entityInstances = null!;
     private List<EntityInstance>? _filteredEntityInstances;
-    private EntityDefinition? _entityDefinition;
+    private EntityDefinition _entityDefinition = null!;
     private string _searchString = string.Empty;
 
     private async Task<List<string>> LoadDefinition(bool refresh)
@@ -206,27 +206,27 @@
                         { x => x.OnSubmit, async () => (await EIS.DeleteInstanceAsync(context.Id, true)).IsSuccess }
                 };
 
-            IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Force Delete", innerParameters, options);
-            DialogResult? dresult = await dialog.Result;
-            if (dresult != null && !dresult.Canceled && dresult.Data != null && dresult.Data is bool)
-                return (bool)dresult.Data;
-            return false;
-        }
-    },
+                IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Force Delete", innerParameters, options);
+                DialogResult? dresult = await dialog.Result;
+                if (dresult != null && !dresult.Canceled && dresult.Data != null && dresult.Data is bool)
+                    return (bool)dresult.Data;
+                return false;
+                }
+            },
             { x => x.ErrorMessage, "Failed to delete the entity instance"}
         };
 
-IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Confirm Deletion", parameters, options);
-DialogResult? result = await dialog.Result;
-if (result == null || result.Canceled)
-    return;
+        IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Confirm Deletion", parameters, options);
+        DialogResult? result = await dialog.Result;
+        if (result == null || result.Canceled)
+            return;
 
-if (result.Data is bool && (bool)result.Data)
-{
-    if (_entityInstances?.Contains(context) == true)
-        _entityInstances.Remove(context);
-    Filter();
-    await NS.Show($"Successfully deleted the instance", Severity.Success);
-}
+        if (result.Data is bool && (bool)result.Data)
+        {
+            if (_entityInstances.Contains(context) == true)
+                _entityInstances.Remove(context);
+            Filter();
+            await NS.Show($"Successfully deleted the instance", Severity.Success);
+        }
     }
 }
