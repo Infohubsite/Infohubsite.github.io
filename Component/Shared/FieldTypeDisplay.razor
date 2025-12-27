@@ -16,6 +16,10 @@
     protected override async Task OnInitializedAsync()
     {
         Result<List<EntityDefinition>> result = await EDS.GetEntityDefinitionsAsync();
-        if (result.IsSuccess) entityDefinitions = result.Value;
+        if (result.IsSuccess)
+        {
+            entityDefinitions = result.Value;
+            StateHasChanged();
+        }
     }
 }
