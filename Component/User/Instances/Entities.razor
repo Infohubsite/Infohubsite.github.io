@@ -111,9 +111,7 @@
 
     private void OpenInstance(TableRowClickEventArgs<EntityInstance> args)
     {
-        if (args.Item == null)
-            return;
-
+        if (args.Item == null) return;
         NM.NavigateTo($"/Instances/{args.Item.Id}");
     }
     private async Task OpenInstanceDialog(EntityInstance? context = null)

@@ -95,7 +95,7 @@
             {
                 model.Data = result.Value.Data.ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
                 foreach (FieldDefinition field in EntityDefinition.Fields)
-                    if (model.Data.TryGetValue(field.Name, out var value) && value is JsonElement je)
+                    if (model.Data.TryGetValue(field.Name, out object? value) && value is JsonElement je)
                         model.Data[field.Name] = ConvertJsonElement(je, field.DataType, field.IsList);
                     else if (!model.Data.ContainsKey(field.Name))
                         model.Data[field.Name] = field.IsList ? new List<object>() : GetDefaultValue(field.DataType, field.IsRequired);
@@ -117,10 +117,10 @@
         return dataType switch
         {
             DataType.Text => je.ToString(),
-            DataType.Number => je.TryGetDouble(out var d) ? d : (double?)null,
-            DataType.Date => je.TryGetDateTime(out var dt) ? dt : (DateTime?)null,
+            DataType.Number => je.TryGetDouble(out double d) ? d : (double?)null,
+            DataType.Date => je.TryGetDateTime(out DateTime dt) ? dt : (DateTime?)null,
             DataType.Boolean => je.GetBoolean(),
-            DataType.EntityReference => je.TryGetGuid(out var g) ? g : (Guid?)null,
+            DataType.EntityReference => je.TryGetGuid(out Guid g) ? g : (Guid?)null,
             DataType.File => je.ToString(),
             _ => null
         };

@@ -91,7 +91,7 @@ namespace Frontend.Services
         public IEnumerable<TValue> GetGroup(TGroupKey groupKey)
         {
             if (_groups.TryGetValue(groupKey, out HashSet<TKey>? keys))
-                foreach (var key in keys)
+                foreach (TKey key in keys)
                     if (_items.TryGetValue(key, out TValue? val))
                         yield return val;
         }

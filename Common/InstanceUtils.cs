@@ -13,10 +13,7 @@ namespace Frontend.Common
                 {
                     case JsonValueKind.String:
                         string? stringValue = je.GetString();
-                        if (DateTime.TryParse(stringValue, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out DateTime dt))
-                        {
-                            return dt.ToShortDateString();
-                        }
+                        if (DateTime.TryParse(stringValue, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out DateTime dt)) return dt.ToShortDateString();
                         return stringValue ?? "";
                     case JsonValueKind.Number:
                     case JsonValueKind.True:
@@ -52,8 +49,7 @@ namespace Frontend.Common
             string? displayNameKey = instance.Data.Keys.FirstOrDefault(k => k.Equals("Name", StringComparison.OrdinalIgnoreCase))
                               ?? instance.Data.Keys.FirstOrDefault(k => k.Equals("Title", StringComparison.OrdinalIgnoreCase));
 
-            if (displayNameKey != null && instance.Data.TryGetValue(displayNameKey, out var displayNameValue) && displayNameValue != null)
-                return FormatValue(displayNameValue);
+            if (displayNameKey != null && instance.Data.TryGetValue(displayNameKey, out object? displayNameValue) && displayNameValue != null) return FormatValue(displayNameValue);
 
             string? displayName = instance.Data
                 .Where(kvp => kvp.Value is JsonElement je && je.ValueKind == JsonValueKind.String && !Guid.TryParse(je.GetString(), out _))

@@ -70,7 +70,7 @@
 
         try
         {
-            var result = await Acct.LoginAsync(loginModel.Username, loginModel.Password);
+            FormResult result = await Acct.LoginAsync(loginModel.Username, loginModel.Password);
             if (!result.Succeeded)
             {
                 errors = true;
