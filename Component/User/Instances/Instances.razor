@@ -28,7 +28,7 @@
                                     <td>
                                         @if (_entityInstance.Data.TryGetValue(field.Name, out object? value))
                                         {
-                                            <FieldValueDisplay Value="value" /> // TODO: add buttons to download and to browse referenced instances and their entity definitions
+                                            <FieldValueDisplay Value="value" Info="new FieldValueDisplay.FieldInfo { Type = field.DataType, IsList = field.IsList }" />
                                         }
                                         else
                                         {

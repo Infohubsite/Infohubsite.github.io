@@ -1,94 +1,135 @@
-﻿@* TODO: require the field type to not guess it *@ 
-@switch (mode)
+﻿@if (mode == DisplayMode.Error)
 {
-    case DisplayMode.Guid:
-        <GuidRenderer InstanceId="@guidr" CurrentDepth="@Depth" />
-        break;
+    <MudText Typo="Typo.caption" Class="font-italic" Color="Color.Error">(format error)</MudText>
+}
+else if (mode == DisplayMode.NotSet)
+{
+    <MudText Typo="Typo.caption" Class="font-italic" Color="Color.Default">(empty)</MudText>
+}
+else
+{
+    @switch (mode)
+    {
+        case DisplayMode.PlainText:
+            <MudText Typo="Typo.body2">@val</MudText>
+            break;
 
-    case DisplayMode.Array:
-        <span style="display: inline-flex; align-items: baseline;">
-            <span>[</span>
-            <span style="display: inline-flex; gap: 10px; padding: 0 4px;">
-                @foreach (var item in jear)
-                {
-                    <FieldValueDisplay Value="@item" Depth="@Depth" />
-                }
-            </span>
-            <span>]</span>
-        </span>
-        break;
+        case DisplayMode.DateTime:
+            @if (val is DateTime date)
+            {
+                <MudText Typo="Typo.body2" Style="white-space: nowrap;">
+                    <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Class="mr-1" Style="vertical-align: text-bottom;" />
+                    @date.ToString("g")
+                </MudText>
+            }
+            break;
 
-    case DisplayMode.DateTime:
-    case DisplayMode.PlainText:
-        <span>@textr</span>
-        break;
+        case DisplayMode.Boolean:
+            @if (val is bool boolean)
+            {
+                <MudCheckBox T="bool" Value="boolean" ReadOnly="true" Dense="true" Size="Size.Small" Color="Color.Primary" UnCheckedColor="Color.Default" />
+            }
+            break;
 
-    case DisplayMode.NotSet:
-        <i>(not set)</i>
-        break;
+        case DisplayMode.Guid:
+            @if (val is Guid guid)
+            {
+                <GuidRenderer InstanceId="@guid" />
+            }
+            break;
+
+        case DisplayMode.File:
+            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                <MudIcon Icon="@Icons.Material.Filled.AttachFile" Size="Size.Small" Color="Color.Primary" />
+                <MudText Typo="Typo.body2">@val</MudText>
+            </MudStack>
+            break;
+
+        case DisplayMode.Array:
+            @if (val is List<object> items)
+            {
+                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Style="flex-wrap: wrap; display: inline-flex;">
+                    @foreach (object item in items)
+                    {
+                        <MudPaper Class="d-flex align-center px-2 py-1" Elevation="0" Outlined="true" Style="background-color: var(--mud-palette-background-grey);">
+                            <FieldValueDisplay Value="@item" Info="@(new FieldInfo { Type = Info.Type, IsList = false })" />
+                        </MudPaper>
+                    }
+                </MudStack>
+            }
+            break;
+    }
 }
 
 @code {
     [Parameter, EditorRequired] public object? Value { get; set; }
-    [Parameter] public int Depth { get; set; } = 0;
+    [Parameter, EditorRequired] public FieldInfo Info { get; set; }
 
-    private enum DisplayMode { NotSet, PlainText, DateTime, Guid, Array }
+    public struct FieldInfo
+    {
+        public DataType Type { get; set; }
+        public bool IsList { get; set; }
+    }
+
+    private enum DisplayMode { NotSet, PlainText, DateTime, Boolean, Guid, File, Array, Error }
+
     private DisplayMode mode;
-
-    private string? textr;
-    private System.Text.Json.JsonElement.ArrayEnumerator jear;
-    private Guid guidr;
+    private object? val;
 
     protected override void OnParametersSet()
     {
-        if (Value is System.Text.Json.JsonElement je)
+        mode = DisplayMode.NotSet;
+        val = null;
+
+        if (Value is not JsonElement element || element.ValueKind == JsonValueKind.Null) return;
+
+        try
         {
-            switch (je.ValueKind)
-            {
-                case System.Text.Json.JsonValueKind.String:
-                    string? stringValue = je.GetString();
-                    if (Guid.TryParse(stringValue, out var guid))
-                    {
-                        mode = DisplayMode.Guid;
-                        guidr = guid;
-                    }
-                    else if (DateTime.TryParse(stringValue, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var dt))
-                    {
-                        mode = DisplayMode.DateTime;
-                        textr = dt.ToShortDateString();
-                    }
-                    else
-                    {
-                        mode = DisplayMode.PlainText;
-                        textr = stringValue;
-                    }
-                    break;
-                case System.Text.Json.JsonValueKind.Number:
-                case System.Text.Json.JsonValueKind.True:
-                case System.Text.Json.JsonValueKind.False:
-                    mode = DisplayMode.PlainText;
-                    textr = je.GetRawText();
-                    break;
-                case System.Text.Json.JsonValueKind.Null:
-                    mode = DisplayMode.NotSet;
-                    break;
-                case System.Text.Json.JsonValueKind.Array:
+            if (Info.IsList)
+                if (element.ValueKind == JsonValueKind.Array)
+                {
                     mode = DisplayMode.Array;
-                    jear = je.EnumerateArray();
-                    break;
-                default:
-                    mode = DisplayMode.PlainText;
-                    textr = je.ToString();
-                    Console.WriteLine("DISPLAY NOT SET FOR: " + textr);
-                    break;
-            }
+                    val = element.EnumerateArray().ToList();
+                }
+                else mode = DisplayMode.Error;
+            else switch (Info.Type)
+                {
+                    case DataType.Text:
+                    default:
+                        mode = DisplayMode.PlainText;
+                        val = element.ToString();
+                        break;
+
+                    case DataType.Number:
+                        mode = DisplayMode.PlainText;
+                        val = element.GetRawText();
+                        break;
+
+                    case DataType.Date:
+                        mode = DisplayMode.DateTime;
+                        val = element.ValueKind == JsonValueKind.String && DateTime.TryParse(element.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime dt) ? dt : element.GetDateTime();
+                        break;
+
+                    case DataType.Boolean:
+                        mode = DisplayMode.Boolean;
+                        val = element.ValueKind == JsonValueKind.True;
+                        break;
+
+                    case DataType.EntityReference:
+                        mode = DisplayMode.Guid;
+                        if (element.ValueKind == JsonValueKind.String && Guid.TryParse(element.GetString(), out Guid g)) val = g;
+                        else throw new FormatException("Invalid GUID format");
+                        break;
+
+                    case DataType.File:
+                        mode = DisplayMode.File;
+                        val = element.ToString();
+                        break;
+                }
         }
-        else if (Value is null)
-            mode = DisplayMode.NotSet;
-        else
+        catch
         {
-            mode = DisplayMode.PlainText;
-            textr = Value.ToString();
+            mode = DisplayMode.Error;
         }
     }
 }
