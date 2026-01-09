@@ -27,7 +27,7 @@ else
         case DisplayMode.Boolean:
             @if (val is bool boolean)
             {
-                <MudCheckBox T="bool" Value="boolean" ReadOnly="true" Dense="true" Size="Size.Small" Color="Color.Primary" UnCheckedColor="Color.Default" />
+                <MudIcon Icon="@(boolean? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" Size="Size.Small" Color="@(boolean? Color.Success: Color.Error)" Class="mr-1" Style="vertical-align: text-bottom;" />
             }
             break;
 
