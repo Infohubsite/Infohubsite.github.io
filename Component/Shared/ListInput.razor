@@ -3,30 +3,28 @@
         <FieldDisplay @ref="display" FieldName="@Label" DataType="DataType" Required="Required && Values.Count == 0" ReferenceTargetEntityDefinitionId="ReferenceTargetEntityDefinitionId" @bind-Value="value" />
     </div>
     <MudSpacer />
-    <MudButton OnClick="AddChip"
-               Variant="Variant.Filled"
-               Color="Color.Primary">Add</MudButton>
+    <MudButton OnClick="AddChip" Variant="Variant.Filled" Color="Color.Primary">Add</MudButton>
 </div>
 
+
 <div class="mt-2">
-    @foreach (object chip in Values)
+    @if (Values.Count > 0)
     {
-        <MudChip T="string" Color="Color.Secondary" OnClose="() => RemoveChip(chip)">
-            <MudText Style="overflow: hidden; white-space: nowrap;">
-                @if (DataType == DataType.EntityReference && chip is Guid guid)
+        <MudSimpleTable Hover="true" Dense="true" Elevation="0" Outlined="true">
+            <tbody>
+                @foreach (object value in Values)
                 {
-                    <GuidRenderer CurrentDepth="0" InstanceId="guid" />
+                    <tr>
+                        <td>
+                            <ValueDisplay Type="@DataType" Value="@value" />
+                        </td>
+                        <td style="width: 1%; white-space: nowrap;">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => RemoveValue(value)" />
+                        </td>
+                    </tr>
                 }
-                else if (DataType == DataType.File && chip is IBrowserFile file)
-                {
-                    @file.Name
-                }
-                else
-                {
-                    @chip
-                }
-            </MudText>
-        </MudChip>
+            </tbody>
+        </MudSimpleTable>
     }
 </div>
 
@@ -58,9 +56,9 @@
         await ValuesChanged.InvokeAsync(Values);
     }
 
-    private Task RemoveChip(object chip)
+    private Task RemoveValue(object value)
     {
-        Values.Remove(chip);
+        Values.Remove(value);
         return ValuesChanged.InvokeAsync(Values);
     }
 }

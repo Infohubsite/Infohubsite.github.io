@@ -19,12 +19,12 @@
                     </CardHeaderContent>
                 </MudCardHeader>
                 <MudCardContent>
-                    <MudSimpleTable Style="width: 100%;" Dense="true" Hover="true">
+                    <MudSimpleTable Dense="true" Hover="true">
                         <tbody>
                             @foreach (FieldDefinition field in _entityDefinition.Fields.OrderBy(f => f.Name))
                             {
                                 <tr>
-                                    <td style="font-weight: 500; width: 30%;">@field.Name</td>
+                                    <td>@field.Name</td>
                                     <td>
                                         @if (_entityInstance.Data.TryGetValue(field.Name, out object? value))
                                         {

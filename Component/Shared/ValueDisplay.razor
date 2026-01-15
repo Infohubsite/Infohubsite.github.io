@@ -1,0 +1,42 @@
+﻿<div class="d-inline-flex align-center gap-1" style="vertical-align: middle;">
+    @switch (Type)
+    {
+        case DataType.Text:
+        case DataType.Number:
+        default:
+            <MudText Typo="Typo.body2">@Value</MudText>
+            break;
+
+        case DataType.Date:
+            @if (Value is DateTime date)
+            {
+                <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Color="Color.Primary" />
+                <MudText Typo="Typo.body2">@date.ToString("g")</MudText>
+            }
+            break;
+
+        case DataType.Boolean:
+            @if (Value is bool boolean)
+            {
+                <MudIcon Icon="@(boolean? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" Size="Size.Small" Color="@(boolean? Color.Success: Color.Error)" />
+            }
+            break;
+
+        case DataType.EntityReference:
+            @if (Value is Guid guid)
+            {
+                <GuidRenderer InstanceId="guid" />
+            }
+            break;
+
+        case DataType.File:
+            <MudIcon Icon="@Icons.Material.Filled.AttachFile" Size="Size.Small" Color="Color.Primary" />
+            <MudText Typo="Typo.body2">@(Value is IBrowserFile file ? file.Name : Value)</MudText>
+            break;
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public object? Value { get; set; }
+    [Parameter, EditorRequired] public DataType Type { get; set; }
+}

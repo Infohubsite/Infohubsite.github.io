@@ -1,64 +1,28 @@
-﻿@if (mode == DisplayMode.Error)
+﻿@if (mode == DisplayMode.Single)
 {
-    <MudText Typo="Typo.caption" Class="font-italic" Color="Color.Error">(format error)</MudText>
-}
-else if (mode == DisplayMode.NotSet)
-{
-    <MudText Typo="Typo.caption" Class="font-italic" Color="Color.Default">(empty)</MudText>
+    <ValueDisplay Value="@val" Type="@Info.Type" />
 }
 else
 {
-    @switch (mode)
-    {
-        case DisplayMode.PlainText:
-            <MudText Typo="Typo.body2">@val</MudText>
-            break;
-
-        case DisplayMode.DateTime:
-            @if (val is DateTime date)
+    <div class="d-inline-flex align-center gap-1" style="height: 32px; vertical-align: middle;">
+        @if (mode == DisplayMode.Error)
+        {
+            <MudText Typo="Typo.caption" Class="font-italic" Color="Color.Error">(format error)</MudText>
+        }
+        else if (mode == DisplayMode.NotSet)
+        {
+            <MudText Typo="Typo.caption" Class="font-italic" Color="Color.Default">(empty)</MudText>
+        }
+        else if (val is List<object> items)
+        {
+            @foreach (object item in items)
             {
-                <MudText Typo="Typo.body2" Style="white-space: nowrap;">
-                    <MudIcon Icon="@Icons.Material.Filled.CalendarToday" Size="Size.Small" Color="Color.Primary" Class="mr-1" Style="vertical-align: text-bottom;" />
-                    @date.ToString("g")
-                </MudText>
+                <MudPaper Class="d-flex align-center justify-center px-2 py-1 flex-shrink-0" Elevation="0" Outlined="true" Style="background-color: var(--mud-palette-background-grey); height: 100%;">
+                    <ValueDisplay Value="@item" Type="@Info.Type" />
+                </MudPaper>
             }
-            break;
-
-        case DisplayMode.Boolean:
-            @if (val is bool boolean)
-            {
-                <MudIcon Icon="@(boolean? Icons.Material.Filled.Check : Icons.Material.Filled.Close)" Size="Size.Small" Color="@(boolean? Color.Success: Color.Error)" Class="mr-1" Style="vertical-align: text-bottom;" />
-            }
-            break;
-
-        case DisplayMode.Guid:
-            @if (val is Guid guid)
-            {
-                <GuidRenderer InstanceId="@guid" />
-            }
-            break;
-
-        case DisplayMode.File:
-            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
-                <MudIcon Icon="@Icons.Material.Filled.AttachFile" Size="Size.Small" Color="Color.Primary" />
-                <MudText Typo="Typo.body2">@val</MudText>
-            </MudStack>
-            break;
-
-        case DisplayMode.Array:
-            @if (val is List<object> items)
-            {
-                <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center" Style="flex-wrap: wrap; display: inline-flex;">
-                    @foreach (object item in items)
-                    {
-                        <MudPaper Class="d-flex align-center px-2 py-1" Elevation="0" Outlined="true" Style="background-color: var(--mud-palette-background-grey);">
-                            <FieldValueDisplay Value="@item" Info="@(new FieldInfo { Type = Info.Type, IsList = false })" />
-                        </MudPaper>
-                    }
-                </MudStack>
-            }
-            break;
-    }
+        }
+    </div>
 }
 
 @code {
@@ -71,7 +35,7 @@ else
         public bool IsList { get; set; }
     }
 
-    private enum DisplayMode { NotSet, PlainText, DateTime, Boolean, Guid, File, Array, Error }
+    private enum DisplayMode { NotSet, Single, Array, Error }
 
     private DisplayMode mode;
     private object? val;
@@ -89,47 +53,33 @@ else
                 if (element.ValueKind == JsonValueKind.Array)
                 {
                     mode = DisplayMode.Array;
-                    val = element.EnumerateArray().ToList();
+                    List<object> list = [];
+                    foreach (JsonElement item in element.EnumerateArray())
+                        list.Add(ParseElement(item, Info.Type));
+                    val = list;
                 }
                 else mode = DisplayMode.Error;
-            else switch (Info.Type)
-                {
-                    case DataType.Text:
-                    default:
-                        mode = DisplayMode.PlainText;
-                        val = element.ToString();
-                        break;
-
-                    case DataType.Number:
-                        mode = DisplayMode.PlainText;
-                        val = element.GetRawText();
-                        break;
-
-                    case DataType.Date:
-                        mode = DisplayMode.DateTime;
-                        val = element.ValueKind == JsonValueKind.String && DateTime.TryParse(element.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime dt) ? dt : element.GetDateTime();
-                        break;
-
-                    case DataType.Boolean:
-                        mode = DisplayMode.Boolean;
-                        val = element.ValueKind == JsonValueKind.True;
-                        break;
-
-                    case DataType.EntityReference:
-                        mode = DisplayMode.Guid;
-                        if (element.ValueKind == JsonValueKind.String && Guid.TryParse(element.GetString(), out Guid g)) val = g;
-                        else throw new FormatException("Invalid GUID format");
-                        break;
-
-                    case DataType.File:
-                        mode = DisplayMode.File;
-                        val = element.ToString();
-                        break;
-                }
+            else
+            {
+                mode = DisplayMode.Single;
+                val = ParseElement(element, Info.Type);
+            }
         }
         catch
         {
             mode = DisplayMode.Error;
         }
+    }
+
+    private object ParseElement(JsonElement element, DataType type)
+    {
+        return type switch
+        {
+            DataType.Number => element.GetRawText(),
+            DataType.Date => element.ValueKind == JsonValueKind.String && DateTime.TryParse(element.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime dt) ? dt : element.GetDateTime(),
+            DataType.Boolean => element.ValueKind == JsonValueKind.True,
+            DataType.EntityReference => (element.ValueKind == JsonValueKind.String && Guid.TryParse(element.GetString(), out Guid g)) ? g : throw new FormatException(),
+            _ => element.ToString()
+        };
     }
 }

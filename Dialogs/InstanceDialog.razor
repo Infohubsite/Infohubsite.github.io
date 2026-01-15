@@ -22,7 +22,7 @@
                     @if (field.IsList)
                     {
                         <div class="my-4">
-                            <ChipInput Label="@field.Name" Values="GetListValue(field.Name)" ValuesChanged="StateHasChanged" DataType="field.DataType" Required="field.IsRequired" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
+                            <ListInput Label="@field.Name" Values="GetListValue(field.Name)" ValuesChanged="StateHasChanged" DataType="field.DataType" Required="field.IsRequired" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
                         </div>
                     }
                     else
