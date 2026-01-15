@@ -1,4 +1,4 @@
-﻿<div class="d-inline-flex align-center gap-1" style="vertical-align: middle;">
+﻿<MudStack Row="true" Spacing="1">
     @switch (Type)
     {
         case DataType.Text:
@@ -34,7 +34,7 @@
             <MudText Typo="Typo.body2">@(Value is IBrowserFile file ? file.Name : Value)</MudText>
             break;
     }
-</div>
+</MudStack>
 
 @code {
     [Parameter, EditorRequired] public object? Value { get; set; }

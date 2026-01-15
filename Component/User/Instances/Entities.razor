@@ -29,14 +29,14 @@
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="Fields" Style="max-width: 1px;">
-                        <MudStack Row="true" Class="mud-typography-body1" Style="overflow: hidden;">
+                        <MudStack Row="true" Style="overflow: hidden;">
                             @foreach (KeyValuePair<string, object?> field in context.Data)
                             {
                                 FieldDefinition definition = _entityDefinition.Fields.Find(s => string.Equals(s.Name, field.Key, StringComparison.OrdinalIgnoreCase))!;
-                                <div class="d-inline-flex align-center">
-                                    <strong class="mr-1">@field.Key:</strong>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    <strong>@field.Key:</strong>
                                     <FieldValueDisplay Value="@field.Value" Info="@(new FieldValueDisplay.FieldInfo { Type = definition.DataType, IsList = definition.IsList })" />
-                                </div>
+                                </MudStack>
                             }
                         </MudStack>
                     </MudTd>

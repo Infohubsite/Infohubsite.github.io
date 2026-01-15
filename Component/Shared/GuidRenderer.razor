@@ -4,16 +4,18 @@
 {
     <MudText Typo="Typo.body2" Class="font-italic">...</MudText>
 }
-else if (error != null)
-{
-    <MudText Typo="Typo.body2" Color="Color.Error">@error</MudText>
-}
-else if (refInstance != null)
+else
 {
     <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Color="Color.Primary" />
-    <MudText Typo="Typo.body2">@name</MudText>
+    if (error != null)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Error">@error</MudText>
+    }
+    else if (refInstance != null)
+    {
+        <MudText Typo="Typo.body2">@name</MudText>
+    }
 }
-
 @code {
     [Parameter, EditorRequired] public Guid InstanceId { get; set; }
 

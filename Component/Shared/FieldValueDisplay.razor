@@ -4,7 +4,7 @@
 }
 else
 {
-    <div class="d-inline-flex align-center gap-1" style="height: 32px; vertical-align: middle;">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
         @if (mode == DisplayMode.Error)
         {
             <MudText Typo="Typo.caption" Class="font-italic" Color="Color.Error">(format error)</MudText>
@@ -17,12 +17,14 @@ else
         {
             @foreach (object item in items)
             {
-                <MudPaper Class="d-flex align-center justify-center px-2 py-1 flex-shrink-0" Elevation="0" Outlined="true" Style="background-color: var(--mud-palette-background-grey); height: 100%;">
-                    <ValueDisplay Value="@item" Type="@Info.Type" />
+                <MudPaper Elevation="0" Outlined="true" Style="background-color: var(--mud-palette-background-grey);">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.Center" Style="padding: 2px 6px;">
+                        <ValueDisplay Value="@item" Type="@Info.Type" />
+                    </MudStack>
                 </MudPaper>
             }
         }
-    </div>
+    </MudStack>
 }
 
 @code {
