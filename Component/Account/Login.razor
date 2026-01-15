@@ -33,11 +33,14 @@
                     <MudTextField Label="Password" Class="mt-3" @bind-Value="loginModel.Password" For="@(() => loginModel.Password)" InputType="InputType.Password" Required="true" />
                 </MudCardContent>
                 <MudCardActions>
-                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" Disabled="@loading" Loading="@loading" Class="ml-auto">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" Disabled="@loading" Class="ml-auto">
                         Login
                     </MudButton>
                 </MudCardActions>
-                <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" hidden="@(!loading)" />
+                @if (loading)
+                {
+                    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+                }
             </MudCard>
         </EditForm>
     </MudItem>
