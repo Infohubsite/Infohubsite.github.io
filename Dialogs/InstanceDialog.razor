@@ -5,33 +5,33 @@
 
 <MudDialog>
     <DialogContent>
-        @if (EntityDefinition == null)
-        {
-            <MudProgressCircular Indeterminate="true" />
-        }
-        else
-        {
-            @if (error != null)
-            {
-                <MudAlert Severity="Severity.Error" Class="my-2">@error</MudAlert>
-            }
-
-            <MudForm @ref="form" @bind-IsValid="valid" Class="mt-4">
-                @foreach (FieldDefinition field in EntityDefinition.Fields)
+        <DataLoader LoadAction="LoadData">
+            <Loading>
+                <MudProgressCircular Indeterminate="true" />
+            </Loading>
+            <Loaded>
+                @if (error != null)
                 {
-                    @if (field.IsList)
-                    {
-                        <div class="my-4">
-                            <ListInput Label="@field.Name" Values="GetListValue(field.Name)" ValuesChanged="StateHasChanged" DataType="field.DataType" Required="field.IsRequired" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
-                        </div>
-                    }
-                    else
-                    {
-                        <FieldDisplay FieldName="@field.Name" DataType="field.DataType" Required="field.IsRequired" @bind-Value="model.Data[field.Name]" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
-                    }
+                    <MudAlert Severity="Severity.Error" Class="my-2">@error</MudAlert>
                 }
-            </MudForm>
-        }
+
+                <MudForm @ref="form" @bind-IsValid="valid" Class="mt-4">
+                    @foreach (FieldDefinition field in EntityDefinition!.Fields)
+                    {
+                        @if (field.IsList)
+                        {
+                            <div class="my-4">
+                                <ListInput Label="@field.Name" Values="GetListValue(field.Name)" ValuesChanged="StateHasChanged" DataType="field.DataType" Required="field.IsRequired" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
+                            </div>
+                        }
+                        else
+                        {
+                            <FieldDisplay FieldName="@field.Name" DataType="field.DataType" Required="field.IsRequired" @bind-Value="model.Data[field.Name]" ReferenceTargetEntityDefinitionId="field.ReferenceTargetEntityDefinitionId" />
+                        }
+                    }
+                </MudForm>
+            </Loaded>
+        </DataLoader>
     </DialogContent>
     <DialogActions>
         @if (uploading)
@@ -78,29 +78,42 @@
     private bool valid, uploading;
     private float uploadProgress = 0f;
 
-    protected override async Task OnInitializedAsync()
+    private async Task<List<string>> LoadData(bool refresh)
     {
-        EntityDefinition = (await EDS.GetEntityDefinitionAsync(EntityDefinitionId)).Value;
-        if (EntityDefinition == null)
-            error = "Could not load the entity definition. Cannot create instance.";
-        else if (CurrentInstance == null)
+        List<string> errors = [];
+
+        Result<EntityDefinition> defResult = await EDS.GetEntityDefinitionAsync(EntityDefinitionId);
+        if (!defResult.IsSuccess)
+        {
+            errors.Add("Could not load the entity definition. Cannot create instance.");
+            return errors;
+        }
+        EntityDefinition = defResult.Value;
+
+        if (CurrentInstance == null)
+        {
             foreach (FieldDefinition field in EntityDefinition.Fields)
                 model.Data[field.Name] = field.IsList ? new List<object>() : GetDefaultValue(field.DataType, field.IsRequired);
+        }
         else
         {
             Result<EntityInstance> result = await EIS.GetInstanceAsync(CurrentInstance.Value);
             if (!result.IsSuccess || result.Value == null)
-                error = result.Exception == null ? "Could not load the instance to edit." : result.Exception.Message;
-            else
             {
-                model.Data = result.Value.Data.ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
-                foreach (FieldDefinition field in EntityDefinition.Fields)
-                    if (model.Data.TryGetValue(field.Name, out object? value) && value is JsonElement je)
-                        model.Data[field.Name] = ConvertJsonElement(je, field.DataType, field.IsList);
-                    else if (!model.Data.ContainsKey(field.Name))
-                        model.Data[field.Name] = field.IsList ? new List<object>() : GetDefaultValue(field.DataType, field.IsRequired);
+                errors.Add(result.Exception == null ? "Could not load the instance to edit." : result.Exception.Message);
+                return errors;
+            }
+
+            model.Data = result.Value.Data.ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
+            foreach (FieldDefinition field in EntityDefinition.Fields)
+            {
+                if (model.Data.TryGetValue(field.Name, out object? value) && value is JsonElement je)
+                    model.Data[field.Name] = ConvertJsonElement(je, field.DataType, field.IsList);
+                else if (!model.Data.ContainsKey(field.Name))
+                    model.Data[field.Name] = field.IsList ? new List<object>() : GetDefaultValue(field.DataType, field.IsRequired);
             }
         }
+        return errors;
     }
 
     private object? ConvertJsonElement(JsonElement je, DataType dataType, bool isList)
@@ -142,6 +155,7 @@
         model.Data[fieldName] = new List<object>();
         return (List<object>)model.Data[fieldName]!;
     }
+
     private async Task Submit()
     {
         await form.Validate();
@@ -230,21 +244,21 @@
 
             if (result.IsSuccess)
             {
-                MudDialog.Close(DialogResult.Ok(result.Value));
+                MudDialog.Close();
                 return;
             }
             error = GetErrorMessage(result, "create");
         }
         else
         {
-            Task<Result> resultTask = EIS.UpdateInstanceAsync(CurrentInstance.Value, new() { Data = payload });
+            Task<Result<EntityInstance>> resultTask = EIS.UpdateInstanceAsync(CurrentInstance.Value, new() { Data = payload });
             status = "Updating instance";
             StateHasChanged();
             Result result = await resultTask;
 
             if (result.IsSuccess)
             {
-                MudDialog.Close(DialogResult.Ok((await EIS.GetInstanceAsync(CurrentInstance.Value)).Value));
+                MudDialog.Close();
                 return;
             }
             error = GetErrorMessage(result, "update");

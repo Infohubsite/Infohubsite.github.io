@@ -132,7 +132,7 @@
 
         IDialogReference dialog = await DS.ShowAsync<InstanceDialog>(context == null ? "Create New Entity Instance" : "Edit Entity Instance", parameters, options);
         DialogResult? result = await dialog.Result;
-        if (result == null || result.Canceled || result.Data is not EntityInstance instance)
+        if (result == null || result.Canceled)
             return;
 
         await _dataLoader.Refresh(false);

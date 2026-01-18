@@ -20,24 +20,18 @@
                 </MudCardHeader>
                 <MudCardContent>
                     <MudSimpleTable Dense="true" Hover="true">
-                        <tbody>
-                            @foreach (FieldDefinition field in _entityDefinition.Fields.OrderBy(f => f.Name))
-                            {
-                                <tr>
-                                    <td>@field.Name</td>
-                                    <td>
-                                        @if (_entityInstance.Data.TryGetValue(field.Name, out object? value))
-                                        {
-                                            <FieldValueDisplay Value="value" Info="new FieldValueDisplay.FieldInfo { Type = field.DataType, IsList = field.IsList }" />
-                                        }
-                                        else
-                                        {
-                                            <MudText Typo="Typo.caption"><i>(empty)</i></MudText>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
+                        <MudCardContent>
+                            <MudStack Spacing="1">
+                                @foreach (FieldDefinition field in _entityDefinition.Fields.OrderBy(f => f.Name))
+                                {
+                                    <MudStack Row="true" AlignItems="AlignItems.Center">
+                                        <MudText Typo="Typo.body2" Style="font-weight:bold; min-width: 150px;">@field.Name</MudText>
+                                        <FieldValueDisplay Value="@_entityInstance.Data.GetValueOrDefault(field.Name)" Info="@(new FieldValueDisplay.FieldInfo { Type = field.DataType, IsList = field.IsList })" />
+                                    </MudStack>
+                                    <MudDivider />
+                                }
+                            </MudStack>
+                        </MudCardContent>
                     </MudSimpleTable>
                 </MudCardContent>
                 <MudCardActions>
