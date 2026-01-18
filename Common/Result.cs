@@ -44,12 +44,12 @@ namespace Frontend.Common
             return Success(result, response.StatusCode);
         }
 
-        public static async Task<Result<T>> HandleAsync(Func<Task<Result<T>>> func, Func<Exception, Task> custom) => await HandlingUtils.HandleAsync(func, async (ex) =>
+        public static Task<Result<T>> HandleAsync(Func<Task<Result<T>>> func, Func<Exception, Task> custom) => HandlingUtils.HandleAsync(func, async (ex) =>
         {
             await custom(ex);
             return Fail(null, ex);
         });
-        public static async Task<Result<T>> HandleAsync(Func<Task<Result<T>>> func, Action<Exception> custom) => await HandlingUtils.HandleAsync(func, (ex) =>
+        public static Task<Result<T>> HandleAsync(Func<Task<Result<T>>> func, Action<Exception> custom) => HandlingUtils.HandleAsync(func, (ex) =>
         {
             custom(ex);
             return Fail(ex);
@@ -81,12 +81,12 @@ namespace Frontend.Common
             else return await Fail(response);
         }
 
-        public static async Task<Result> HandleAsync(Func<Task<Result>> func, Func<Exception, Task> custom) => await HandlingUtils.HandleAsync(func, async (ex) =>
+        public static Task<Result> HandleAsync(Func<Task<Result>> func, Func<Exception, Task> custom) => HandlingUtils.HandleAsync(func, async (ex) =>
         {
             await custom(ex);
             return Fail(ex);
         });
-        public static async Task<Result> HandleAsync(Func<Task<Result>> func, Action<Exception> custom) => await HandlingUtils.HandleAsync(func, (ex) =>
+        public static Task<Result> HandleAsync(Func<Task<Result>> func, Action<Exception> custom) => HandlingUtils.HandleAsync(func, (ex) =>
         {
             custom(ex);
             return Fail(ex);
