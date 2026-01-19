@@ -1,4 +1,6 @@
-﻿<MudStack Row="true" Spacing="1">
+﻿@inject IFileService FS
+
+<MudStack Row="true" Spacing="1">
     @switch (Type)
     {
         case DataType.Text:
@@ -30,8 +32,18 @@
             break;
 
         case DataType.File:
-            <MudIcon Icon="@Icons.Material.Filled.AttachFile" Size="Size.Small" Color="Color.Primary" />
-            <MudText Typo="Typo.body2">@(Value is IBrowserFile file ? file.Name : Value)</MudText>
+            @if (Interactable && Value is string fileName)
+            {
+                <MudLink OnClick="@(() => FS.Download(fileName))" Underline="Underline.None" Color="Color.Inherit" Class="d-flex align-center gap-1" Style="min-width: 0;">
+                    <MudIcon Icon="@Icons.Material.Filled.AttachFile" Size="Size.Small" Color="Color.Primary" />
+                    <MudText Typo="Typo.body2" Style="text-decoration: underline; white-space: nowrap;">@fileName</MudText>
+                </MudLink>
+            }
+            else
+            {
+                <MudIcon Icon="@Icons.Material.Filled.AttachFile" Size="Size.Small" Color="Color.Primary" />
+                <MudText Typo="Typo.body2">@(Value is IBrowserFile file ? file.Name : Value)</MudText>
+            }
             break;
     }
 </MudStack>
@@ -39,4 +51,5 @@
 @code {
     [Parameter, EditorRequired] public object? Value { get; set; }
     [Parameter, EditorRequired] public DataType Type { get; set; }
+    [CascadingParameter] public bool Interactable { get; set; }
 }
