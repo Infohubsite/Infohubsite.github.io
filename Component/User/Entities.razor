@@ -113,7 +113,7 @@
     private void OpenInstance(TableRowClickEventArgs<EntityInstance> args)
     {
         if (args.Item == null) return;
-        NM.NavigateTo($"/Instances/{args.Item.Id}");
+        NM.NavigateTo($"/Instances/{args.Item.Id}/Info");
     }
     private async Task OpenInstanceDialog(EntityInstance? context = null)
     {
