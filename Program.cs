@@ -36,7 +36,7 @@ namespace Frontend
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Backend"] ?? throw new InvalidOperationException("Backend origin URL ('Origins:Backend') is not configured."));
             })
                 .AddHttpMessageHandler<AuthenticationHeaderHandler>()
-                .AddPolicyHandler(GetRetryPolicy());
+                .AddPolicyHandler(GetRetryPolicy(4));
             builder.Services.AddHttpClient<OriginClient>(client =>
             {
                 client.BaseAddress = new Uri(builder.Configuration["Origins:Frontend"] ?? throw new InvalidOperationException("Frontend origin URL ('Origins:Frontend') is not configured."));
@@ -69,11 +69,11 @@ namespace Frontend
             await builder.Build().RunAsync();
         }
 
-        internal static AsyncRetryPolicy<HttpResponseMessage> GetRetryPolicy(int times = 3) => Policy<HttpResponseMessage>
+        internal static AsyncRetryPolicy<HttpResponseMessage> GetRetryPolicy(int times) => Policy<HttpResponseMessage>
             .Handle<HttpRequestException>(ex => ex.StatusCode == null || ex.StatusCode >= System.Net.HttpStatusCode.InternalServerError)
             .WaitAndRetryAsync(
                 times,
-                retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                retryAttempt => TimeSpan.FromSeconds(Math.Clamp(Math.Pow(2, retryAttempt), 0, 5)),
                 onRetry: (outcome, timespan, retryAttempt, context) => Console.WriteLine($"[Polly] Network error detected. Delaying for {timespan.TotalSeconds}s before retry {retryAttempt}/{times}. Reason: {outcome.Exception.Message}")
             );
     }
