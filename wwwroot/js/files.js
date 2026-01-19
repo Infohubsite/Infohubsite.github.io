@@ -14,3 +14,26 @@
     }
     return await response.json();
 }
+
+async function triggerFileDownload(fileName, url) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return false;
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+
+        anchor.href = objectUrl;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+
+        document.body.removeChild(anchor);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
+        return true;
+    } catch (error) {
+        console.error("Error triggering download:", error);
+        return false;
+    }
+};

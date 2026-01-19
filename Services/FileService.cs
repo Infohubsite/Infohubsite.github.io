@@ -3,6 +3,7 @@ using Frontend.HttpClients;
 using Frontend.Models.Koofr;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
+using MudBlazor;
 using Polly;
 using Shared.DTO.Server;
 
@@ -17,11 +18,12 @@ namespace Frontend.Services
         Task<IEnumerable<string?>> Upload(Action<UploadProgress> progress);
     }
 
-    public class FileService(DefaultClient client, IJSRuntime jsRuntime, ILogger<FileService> logger) : IFileService
+    public class FileService(DefaultClient client, IJSRuntime jsRuntime, ILogger<FileService> logger, INotificationService notifs) : IFileService
     {
         private readonly DefaultClient _client = client;
         private readonly IJSRuntime _jsRuntime = jsRuntime;
         private readonly ILogger<FileService> _logger = logger;
+        private readonly INotificationService _notifs = notifs;
 
         private readonly List<IBrowserFile> _cache = [];
 
@@ -32,11 +34,25 @@ namespace Frontend.Services
         }
         public void ClearCache() => _cache.Clear();
 
+
         public async Task Download(string fileName)
         {
-            // TODO
-            // somehow download and then maybe display the file in the website
-            throw new NotImplementedException();
+            Result<KoofrDownloadDto> result = await _client.GetDownload(fileName);
+
+            if (!result.IsSuccess || string.IsNullOrEmpty(result.Value?.Url))
+            {
+                _logger.LogError("Backend did not return a valid download URL for file: {FileName}", fileName);
+                await _notifs.Show("Failed to retrieve download link.", Severity.Error);
+                return;
+            }
+
+            bool success = await _jsRuntime.InvokeAsync<bool>("triggerFileDownload", fileName, result.Value.Url);
+
+            if (!success)
+            {
+                _logger.LogError("Browser failed to download file: {FileName}", fileName);
+                await _notifs.Show("Download failed.", Severity.Error);
+            }
         }
 
         public async Task<IEnumerable<string?>> Upload(Action<IFileService.UploadProgress> progress)
