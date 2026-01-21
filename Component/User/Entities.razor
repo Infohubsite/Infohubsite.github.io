@@ -16,7 +16,7 @@
         <DataLoaderT @ref="_dataLoader" TArg="bool" LoadAction="LoadInstances">
             <MudTable Items="_filteredEntityInstances" Bordered="true" Hover="true" Breakpoint="Breakpoint.None" Style="white-space: nowrap;" OnRowClick="(TableRowClickEventArgs<EntityInstance> args) => OpenInstance(args)">
                 <ToolBarContent>
-                    <MudIconButton OnClick="@(() => NM.NavigateTo("/"))" Icon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Secondary" Style="margin: 0px 10px 0px 0px;" />
+                    <MudIconButton OnClick="@(() => NM.NavigateTo("/"))" Icon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Secondary" Class="mr-3" />
                     <MudIconButton OnClick="() => _dataLoader.Refresh(true)" Icon="@Icons.Material.Filled.Refresh" Variant="Variant.Outlined" Color="Color.Tertiary" />
                     <MudSpacer />
                     <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Small" Class="ml-4" DebounceInterval="100" OnDebounceIntervalElapsed="Filter" />
@@ -113,7 +113,7 @@
     private void OpenInstance(TableRowClickEventArgs<EntityInstance> args)
     {
         if (args.Item == null) return;
-        NM.NavigateTo($"/Instances/{args.Item.Id}/Info");
+        NM.NavigateTo($"/Instances/{args.Item.Id}");
     }
     private async Task OpenInstanceDialog(EntityInstance? context = null)
     {

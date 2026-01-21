@@ -1,0 +1,178 @@
+﻿@inject IFileService FS
+
+<MudStack Spacing="3">
+    @foreach (FieldDefinition field in EntityDefinition.Fields.OrderBy(f => f.Name))
+    {
+        if (!EntityInstance.Data.TryGetValue(field.Name, out object? objVal) || objVal is not JsonElement val)
+            continue;
+
+        if (val.ValueKind == System.Text.Json.JsonValueKind.Null || val.ValueKind == System.Text.Json.JsonValueKind.Undefined)
+            continue;
+
+        <MudPaper Elevation="0" Class="pa-4 mud-background-gray rounded-lg" Outlined="true">
+            <MudText Typo="Typo.caption" Style="font-weight:bold; color:var(--mud-palette-text-secondary); margin-bottom: 8px; display:block;">
+                @field.Name
+            </MudText>
+
+            @if (field.IsList)
+            {
+                List<JsonElement> listItems = AsEnumerable(val).ToList();
+
+                if (listItems.Any() && listItems.All(IsImageFile))
+                {
+                    <MudCarousel TData="object" Style="height:350px;" ShowArrows="true" ShowBullets="true" AutoCycle="false">
+                        @foreach (JsonElement item in listItems)
+                        {
+                            string? key = item.GetString();
+                            if (string.IsNullOrEmpty(key)) continue;
+                            string src = GetResolvedUrl(key);
+
+                            <MudCarouselItem Transition="Transition.Slide">
+                                <div class="d-flex justify-center align-center" style="height:100%; width:100%;">
+                                    <MudImage Src="@src" ObjectFit="ObjectFit.Contain" Style="height:100%; width:100%;" Class="rounded-lg" />
+                                </div>
+                            </MudCarouselItem>
+                        }
+                    </MudCarousel>
+                }
+                else
+                {
+                    <MudTable Items="@listItems" Dense="true" Hover="false" Bordered="false" Striped="false" Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Item</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Item">
+                                <CascadingValue Value="true">
+                                    <FieldValueDisplay Value="context" Info="new FieldValueDisplay.FieldInfo { Type = field.DataType, IsList = false }" />
+                                </CascadingValue>
+                            </MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager />
+                        </PagerContent>
+                    </MudTable>
+                }
+            }
+            else
+            {
+                if (IsImageFile(val))
+                {
+                    <MudImage Src="@GetResolvedUrl(val.GetString())" Fluid="true" Class="rounded-lg" MaxHeight="500" ObjectFit="ObjectFit.Contain" />
+                }
+                else if (IsVideoFile(val))
+                {
+                    <video controls style="max-width: 100%; max-height: 500px; border-radius: 8px;">
+                        <source src="@GetResolvedUrl(val.GetString())" type="video/webm">
+                        <source src="@GetResolvedUrl(val.GetString())" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                }
+                else
+                {
+                    <CascadingValue Value="true">
+                        <FieldValueDisplay Value="val" Info="new FieldValueDisplay.FieldInfo { Type = field.DataType, IsList = false }" />
+                    </CascadingValue>
+                }
+            }
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired] public EntityDefinition EntityDefinition { get; set; } = null!;
+    [Parameter, EditorRequired] public EntityInstance EntityInstance { get; set; } = null!;
+
+    private Dictionary<string, string> _fileUrls = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _fileUrls.Clear();
+        HashSet<string> filesToResolve = new();
+
+        foreach (FieldDefinition field in EntityDefinition.Fields)
+        {
+            if (!EntityInstance.Data.TryGetValue(field.Name, out object? objVal) || objVal is not JsonElement val)
+                continue;
+
+            if (val.ValueKind == System.Text.Json.JsonValueKind.Null || val.ValueKind == System.Text.Json.JsonValueKind.Undefined)
+                continue;
+
+            if (field.IsList && val.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (JsonElement item in val.EnumerateArray())
+                    CollectIfFile(item, filesToResolve);
+            }
+            else
+            {
+                CollectIfFile(val, filesToResolve);
+            }
+        }
+
+        if (filesToResolve.Any())
+        {
+            IEnumerable<Task<(string Key, string Url)>> tasks = filesToResolve.Select(async key =>
+            {
+                return (Key: key, Url: await FS.GetUrl(key));
+            });
+
+            (string Key, string Url)[] results = await Task.WhenAll(tasks);
+
+            foreach ((string Key, string Url) res in results) 
+                _fileUrls[res.Key] = res.Url;
+        }
+    }
+
+    private void CollectIfFile(JsonElement item, HashSet<string> collector)
+    {
+        if (item.ValueKind != System.Text.Json.JsonValueKind.String) return;
+
+        if (IsImageFile(item) || IsVideoFile(item))
+        {
+            string? s = item.GetString();
+            if (!string.IsNullOrWhiteSpace(s))
+                collector.Add(s);
+        }
+    }
+
+    private string GetResolvedUrl(string? key)
+    {
+        if (string.IsNullOrEmpty(key)) return string.Empty;
+        return _fileUrls.TryGetValue(key, out string? url) ? url : key;
+    }
+
+    private IEnumerable<JsonElement> AsEnumerable(JsonElement value)
+    {
+        if (value.ValueKind == System.Text.Json.JsonValueKind.Array)
+            foreach (JsonElement item in value.EnumerateArray())
+                yield return item;
+    }
+
+    private bool IsImageFile(JsonElement value)
+    {
+        if (value.ValueKind != System.Text.Json.JsonValueKind.String) return false;
+        string? s = value.GetString();
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        try
+        {
+            string ext = System.IO.Path.GetExtension(s);
+            return !string.IsNullOrEmpty(ext) && new[] { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp" }
+                .Contains(ext.ToLowerInvariant());
+        }
+        catch { return false; }
+    }
+
+    private bool IsVideoFile(JsonElement value)
+    {
+        if (value.ValueKind != System.Text.Json.JsonValueKind.String) return false;
+        string? s = value.GetString();
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        try
+        {
+            string? ext = System.IO.Path.GetExtension(s);
+            return !string.IsNullOrEmpty(ext) && new[] { ".webm", ".mp4", ".mov" }
+                .Contains(ext.ToLowerInvariant());
+        }
+        catch { return false; }
+    }
+}
