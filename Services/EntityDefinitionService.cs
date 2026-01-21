@@ -35,7 +35,7 @@ namespace Frontend.Services
 
         public async Task<Result<List<EntityDefinition>>> GetEntityDefinitionsAsync(bool reload = false)
         {
-            if (!reload && !First)
+            if (reload || First)
                 return Result<List<EntityDefinition>>.Success([.. CS.GetDefinitions().OrderBy(i => i.Name)]);
             First = false;
             Result<List<EntityDefinition>> result = await EDS.GetEntityDefinitionsAsync();
