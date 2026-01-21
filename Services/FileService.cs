@@ -14,6 +14,7 @@ namespace Frontend.Services
         public record UploadProgress(string Status, float Progess, string? Name = null, bool? Success = null);
         int Cache(IBrowserFile file);
         void ClearCache();
+        Task<string> GetUrl(string fileName);
         Task Download(string fileName);
         Task<IEnumerable<string?>> Upload(Action<UploadProgress> progress);
     }
@@ -34,21 +35,22 @@ namespace Frontend.Services
         }
         public void ClearCache() => _cache.Clear();
 
-
-        public async Task Download(string fileName)
+        public async Task<string> GetUrl(string fileName)
         {
             Result<KoofrDownloadDto> result = await _client.GetDownload(fileName);
 
             if (!result.IsSuccess || string.IsNullOrEmpty(result.Value?.Url))
             {
                 _logger.LogError("Backend did not return a valid download URL for file: {FileName}", fileName);
-                await _notifs.Show("Failed to retrieve download link.", Severity.Error);
-                return;
+                await _notifs.Show("Failed to retrieve file link.", Severity.Error);
+                return "";
             }
+            else return result.Value.Url;
+        }
 
-            bool success = await _jsRuntime.InvokeAsync<bool>("triggerFileDownload", fileName, result.Value.Url);
-
-            if (!success)
+        public async Task Download(string fileName)
+        {
+            if (!await _jsRuntime.InvokeAsync<bool>("triggerFileDownload", fileName, await GetUrl(fileName)))
             {
                 _logger.LogError("Browser failed to download file: {FileName}", fileName);
                 await _notifs.Show("Download failed.", Severity.Error);
