@@ -33,19 +33,37 @@ namespace Frontend.Services
         private readonly IEntityDefinitionService EDS = eds;
         private readonly ICacheService CS = cs;
 
+        private Task<Result<List<EntityDefinition>>>? _loadingTask;
+
         public async Task<Result<List<EntityDefinition>>> GetEntityDefinitionsAsync(bool reload = false)
         {
+            if (_loadingTask != null)
+                return await _loadingTask;
+
             if (!reload && !First)
                 return Result<List<EntityDefinition>>.Success([.. CS.GetDefinitions().OrderBy(i => i.Name)]);
+
             First = false;
-            Result<List<EntityDefinition>> result = await EDS.GetEntityDefinitionsAsync();
-            if (result.IsSuccess)
+            _loadingTask = new Func<Task<Result<List<EntityDefinition>>>>(async () => {
+                Result<List<EntityDefinition>> result = await EDS.GetEntityDefinitionsAsync();
+                if (result.IsSuccess)
+                {
+                    CS.RemoveDefinitions();
+                    CS.UpsertDefinitions(result.Value);
+                }
+                return result;
+            })();
+
+            try
             {
-                CS.RemoveDefinitions();
-                CS.UpsertDefinitions(result.Value);
+                return await _loadingTask;
             }
-            return result;
+            finally
+            {
+                _loadingTask = null;
+            }
         }
+
         public async Task<Result<EntityDefinition>> GetEntityDefinitionAsync(Guid entityId, bool reload = false)
         {
             if (!reload && CS.TryGetDefinition(entityId, out EntityDefinition? value))
