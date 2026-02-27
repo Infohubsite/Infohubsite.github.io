@@ -10,6 +10,7 @@ namespace Frontend.Models.Converted
         [JsonPropertyName("id")] public required Guid Id { get; init; }
         [JsonPropertyName("entityDefinitionId")] public required Guid EntityDefinitionId { get; init; }
         [JsonPropertyName("data")] public Dictionary<string, object?> Data { get; set; } = [];
+        [JsonPropertyName("version")] public required int Version { get; set; }
 
         [SetsRequiredMembers]
         public EntityInstance(EntityInstanceDto dto)
@@ -17,6 +18,7 @@ namespace Frontend.Models.Converted
             Id = dto.Id;
             EntityDefinitionId = dto.EntityDefinitionId;
             Data = dto.Data;
+            Version = dto.Version;
         }
         public EntityInstance() { }
 
@@ -25,7 +27,8 @@ namespace Frontend.Models.Converted
         {
             Id = from.Id,
             EntityDefinitionId = from.EntityDefinitionId,
-            Data = from.Data
+            Data = from.Data,
+            Version = from.Version
         };
     }
 }

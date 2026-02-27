@@ -46,6 +46,7 @@
 			MudDialog.Close(DialogResult.Ok(true));
 		else
 			error = true;
+		loading = false;
 		StateHasChanged();
 	}
 	private void Cancel() => MudDialog.Cancel();

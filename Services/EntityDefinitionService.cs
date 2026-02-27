@@ -20,11 +20,11 @@ namespace Frontend.Services
     {
         private readonly DefaultClient Client = client;
 
-        public async Task<Result<List<EntityDefinition>>> GetEntityDefinitionsAsync(bool _) => await Client.GetEntityDefinitions();
-        public async Task<Result<EntityDefinition>> GetEntityDefinitionAsync(Guid entityId, bool _) => await Client.GetEntityDefinition(entityId);
-        public async Task<Result<EntityDefinition>> CreateEntityAsync(EntityDefinitionI newEntity) => await Client.CreateEntityDefinition(newEntity.ConvertTo<CreateEntityDefinitionDto, EntityDefinitionI>());
-        public async Task<Result> DeleteEntityAsync(Guid entityId) => await Client.DeleteEntityDefinition(entityId);
-        public async Task<Result> UpdateEntityAsync(Guid entityId, EntityDefinitionI updateEntity) => await Client.UpdateEntityDefinition(entityId, updateEntity.ConvertTo<UpdateEntityDefinitionDto, EntityDefinitionI>());
+        public Task<Result<List<EntityDefinition>>> GetEntityDefinitionsAsync(bool _) => Client.GetEntityDefinitions();
+        public Task<Result<EntityDefinition>> GetEntityDefinitionAsync(Guid entityId, bool _) => Client.GetEntityDefinition(entityId);
+        public Task<Result<EntityDefinition>> CreateEntityAsync(EntityDefinitionI newEntity) => Client.CreateEntityDefinition(newEntity.ConvertTo<CreateEntityDefinitionDto, EntityDefinitionI>());
+        public Task<Result> DeleteEntityAsync(Guid entityId) => Client.DeleteEntityDefinition(entityId);
+        public Task<Result> UpdateEntityAsync(Guid entityId, EntityDefinitionI updateEntity) => Client.UpdateEntityDefinition(entityId, updateEntity.ConvertTo<UpdateEntityDefinitionDto, EntityDefinitionI>());
     }
 
     public class CacheEntityDefinitionService(IEntityDefinitionService eds, ICacheService cs) : IEntityDefinitionService

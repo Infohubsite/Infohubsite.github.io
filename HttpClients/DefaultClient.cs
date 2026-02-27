@@ -37,13 +37,14 @@ namespace Frontend.HttpClients
         {
             Content = JsonContent.Create(newInstance)
         }, $"Error while creating instance for entity '{entityId}'.", (ex) => _logger.LogError(ex, "Could not create instance for entity '{entityId}'.", entityId));
-        public Task<Result> DeleteInstance(Guid instanceId, bool force = false) => HandleAsync(SendResult, new(HttpMethod.Delete, $"/Instances/{instanceId}{(force ? "?force=true" : "")}"), $"Error while deleting instance '{instanceId}'.", (ex) => _logger.LogError(ex, "Could not delete instance with ID '{instanceId}'.", instanceId));
+        public Task<Result> DeleteInstance(Guid instanceId, int version, bool force = false) => HandleAsync(SendResult, new(HttpMethod.Delete, $"/Instances/{instanceId}?version={version}{(force ? "&force=true" : "")}"), $"Error while deleting instance '{instanceId}'.", (ex) => _logger.LogError(ex, "Could not delete instance with ID '{instanceId}'.", instanceId));
         public Task<Result<EntityInstance>> GetInstance(Guid instanceId) => HandleAsync(SendResult<EntityInstance, EntityInstanceDto>, new(HttpMethod.Get, $"/Instances/Instance/{instanceId}"), $"Error while fetching instance '{instanceId}'.", (ex) => _logger.LogError(ex, "Could not fetch instance with ID '{instanceId}'.", instanceId));
         public Task<Result<List<EntityInstance>>> GetInstances(Guid entityId) => HandleAsync(SendResultList<EntityInstance, EntityInstanceDto>, new(HttpMethod.Get, $"/Instances/{entityId}"), $"Error while fetching instances for entity '{entityId}'.", (ex) => _logger.LogError(ex, "Could not fetch instances for entity with ID '{entityId}'.", entityId));
         public Task<Result<EntityInstance>> UpdateInstance(Guid instanceId, UpdateInstanceDto updateInstance) => HandleAsync(SendResult<EntityInstance, EntityInstanceDto>, new(HttpMethod.Put, $"/Instances/{instanceId}")
         {
             Content = JsonContent.Create(updateInstance)
         }, $"Error while updating instance '{instanceId}'.", (ex) => _logger.LogError(ex, "Could not update instance with ID '{instanceId}'.", instanceId));
+        public Task<Result> LockInstance(Guid instanceId, bool unlock = false) => HandleAsync(SendResult, new(HttpMethod.Post, $"/Instances/{instanceId}/Lock{(unlock ? "?unlock=true" : "")}"), $"Error while {(unlock ? "unlocking" : "locking")} instance '{instanceId}'.", (ex) => _logger.LogError(ex, "Could not {action} instance with ID '{instanceId}'.", unlock ? "unlock" : "lock", instanceId));
         #endregion
         #region FILES
         public Task<Result<KoofrDownloadDto>> GetDownload(string fileId) => HandleAsync(SendResult<KoofrDownloadDto>, new(HttpMethod.Get, $"Files/{fileId}"), $"Error while fetching download token for fileId '{fileId}'.", (ex) => _logger.LogError(ex, "Could not fetch download token for fileId '{fileId}'.", fileId));

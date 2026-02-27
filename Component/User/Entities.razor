@@ -117,6 +117,21 @@
     }
     private async Task OpenInstanceDialog(EntityInstance? context = null)
     {
+        LockState lockState = new();
+
+        if (context != null && await EIS.LockInstance(new Lock(context.Id, lockState.Invalidate)) is Result lockResult && !lockResult.IsSuccess)
+        {
+            if (lockResult.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _entityInstances.Remove(context);
+                await NS.Show("Instance already deleted.", Severity.Warning);
+                Filter();
+            }
+            else
+                await NS.Show(lockResult.Exception?.Message ?? "Failed to acquire lock for the instance.", Severity.Warning);
+            return;
+        }
+
         DialogOptions options = new()
         {
             MaxWidth = MaxWidth.Small,
@@ -127,7 +142,8 @@
         {
             { x => x.ButtonText, context == null ? "Create" : "Save" },
             { x => x.EntityDefinitionId, EntityId },
-            { x => x.CurrentInstance, context?.Id }
+            { x => x.CurrentInstance, context?.Id },
+            { x => x.LockState, lockState }
         };
 
         IDialogReference dialog = await DS.ShowAsync<InstanceDialog>(context == null ? "Create New Entity Instance" : "Edit Entity Instance", parameters, options);
@@ -166,40 +182,45 @@
             x => x.OnSubmit,
                 async () =>
                 {
-                    Result result = await EIS.DeleteInstanceAsync(context.Id);
-                    if (result.StatusCode != System.Net.HttpStatusCode.Conflict)
+                    Result result = await EIS.DeleteInstanceAsync(context.Id, context.Version);
+                    
+                    switch (result.StatusCode)
                     {
-                        if (result.StatusCode != System.Net.HttpStatusCode.NotFound)
-                            return result.IsSuccess;
-                        else
-                        {
+                        case System.Net.HttpStatusCode.NotFound:
                             await NS.Show("Instance not found.", Severity.Warning);
                             await _dataLoader.Refresh(true);
                             return true;
-                        }
+                        case System.Net.HttpStatusCode.Locked:
+                            await NS.Show(result.Exception?.Message ?? "The instance is currently locked and cannot be deleted.", Severity.Warning);
+                            return false;
+                        case System.Net.HttpStatusCode.Conflict:
+                            DialogParameters<ConfirmationDialog> innerParameters = new()
+                            {
+                                {
+                                    x => x.Content,
+                                    @<MudText>
+                                        This instance is referenced
+                                        <br />
+                                        <strong>Are you really sure you want to delete this instance?</strong>
+                                    </MudText>
+                                },
+                                { x => x.ButtonText, "Force Delete" },
+                                { x => x.ButtonColor, Color.Error },
+                                { x => x.ButtonStartIcon, Icons.Material.Filled.DeleteForever },
+                                { x => x.OnSubmit, async () => (await EIS.DeleteInstanceAsync(context.Id, context.Version, true)).IsSuccess }
+                            };
+
+                            IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Force Delete", innerParameters, options);
+                            DialogResult? dresult = await dialog.Result;
+                            if (dresult != null && !dresult.Canceled && dresult.Data != null && dresult.Data is bool)
+                                return (bool)dresult.Data;
+                            return false;
+                        case System.Net.HttpStatusCode.PreconditionFailed:
+                            await NS.Show("The instance has been modified by another user. Please refresh and try again.", Severity.Warning);
+                            return false;
+                        default:
+                            return result.IsSuccess;
                     }
-
-                    DialogParameters<ConfirmationDialog> innerParameters = new()
-                    {
-                        {
-                            x => x.Content,
-                            @<MudText>
-                                This instance is referenced
-                                <br />
-                                <strong>Are you really sure you want to delete this instance?</strong>
-                            </MudText>
-                        },
-                        { x => x.ButtonText, "Force Delete" },
-                        { x => x.ButtonColor, Color.Error },
-                        { x => x.ButtonStartIcon, Icons.Material.Filled.DeleteForever },
-                        { x => x.OnSubmit, async () => (await EIS.DeleteInstanceAsync(context.Id, true)).IsSuccess }
-                };
-
-                IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Force Delete", innerParameters, options);
-                DialogResult? dresult = await dialog.Result;
-                if (dresult != null && !dresult.Canceled && dresult.Data != null && dresult.Data is bool)
-                    return (bool)dresult.Data;
-                return false;
                 }
             },
             { x => x.ErrorMessage, "Failed to delete the entity instance."}

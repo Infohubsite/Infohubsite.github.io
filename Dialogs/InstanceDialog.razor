@@ -63,6 +63,7 @@
     [Parameter] public Guid EntityDefinitionId { get; set; }
     [Parameter] public Guid? CurrentInstance { get; set; }
     [Parameter] public string ButtonText { get; set; } = string.Empty;
+    [Parameter] public LockState? LockState { get; set; }
 
     private class FileUploadState
     {
@@ -74,12 +75,15 @@
     private EntityDefinition? EntityDefinition;
     private MudForm form = default!;
     private EntityInstanceI model = new();
+    private int version;
     private string? error, status;
     private bool valid, uploading;
     private float uploadProgress = 0f;
 
     private async Task<List<string>> LoadData(bool refresh)
     {
+        if (LockState != null) LockState.OnLockLost += HandleLockLoss;
+
         List<string> errors = [];
 
         Result<EntityDefinition> defResult = await EDS.GetEntityDefinitionAsync(EntityDefinitionId);
@@ -104,6 +108,7 @@
                 return errors;
             }
 
+            version = result.Value.Version;
             model.Data = result.Value.Data.ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value);
             foreach (FieldDefinition field in EntityDefinition.Fields)
             {
@@ -115,6 +120,11 @@
         }
         return errors;
     }
+    private void HandleLockLoss() => InvokeAsync(async () =>
+    {
+        await NS.Show("Lock lost! The instance was modified elsewhere. Save your changes and refresh the page.", Severity.Warning);
+        StateHasChanged();
+    });
 
     private object? ConvertJsonElement(JsonElement je, DataType dataType, bool isList)
     {
@@ -251,7 +261,7 @@
         }
         else
         {
-            Task<Result<EntityInstance>> resultTask = EIS.UpdateInstanceAsync(CurrentInstance.Value, new() { Data = payload });
+            Task<Result<EntityInstance>> resultTask = EIS.UpdateInstanceAsync(CurrentInstance.Value, new() { Data = payload, Version = version });
             status = "Updating instance";
             StateHasChanged();
             Result result = await resultTask;
@@ -263,6 +273,7 @@
             }
             error = GetErrorMessage(result, "update");
         }
+        uploading = false;
     }
 
     private string GetErrorMessage(Result result, string action)
@@ -274,6 +285,7 @@
     }
     private bool CheckValid()
     {
+        if (LockState != null && !LockState.IsActive) return false;
         if (!valid) return false;
         if (EntityDefinition == null) return false;
 
@@ -283,4 +295,8 @@
         return true;
     }
     private void Cancel() => MudDialog.Cancel();
+    public void Dispose()
+    {
+        if (LockState != null) LockState.OnLockLost -= HandleLockLoss;
+    }
 }
