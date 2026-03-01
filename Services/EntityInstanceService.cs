@@ -96,7 +96,10 @@ namespace Frontend.Services
         {
             Result result = await EIS.DeleteInstanceAsync(instanceId, version, force);
             if (result.IsSuccess)
+            {
                 CS.RemoveInstance(instanceId);
+                _lockContext = null;
+            }
             return result;
         }
         public async Task<Result<EntityInstance>> CreateInstanceAsync(Guid entityId, CreateInstanceDto newInstance)

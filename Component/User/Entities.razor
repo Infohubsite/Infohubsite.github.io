@@ -159,6 +159,21 @@
     }
     private async Task OpenDeleteDialog(EntityInstance context)
     {
+        LockState lockState = new();
+
+        if (await EIS.LockInstance(new Lock(context.Id, lockState.Invalidate)) is Result lockResult && !lockResult.IsSuccess)
+        {
+            if (lockResult.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                _entityInstances.Remove(context);
+                await NS.Show("Instance already deleted.", Severity.Warning);
+                Filter();
+            }
+            else
+                await NS.Show(lockResult.Exception?.Message ?? "Failed to acquire lock for the instance.", Severity.Warning);
+            return;
+        }
+
         DialogOptions options = new()
         {
             MaxWidth = MaxWidth.Small,
@@ -179,7 +194,7 @@
             { x => x.ButtonColor, Color.Error },
             { x => x.ButtonStartIcon, Icons.Material.Filled.DeleteForever },
             {
-            x => x.OnSubmit,
+                x => x.OnSubmit,
                 async () =>
                 {
                     Result result = await EIS.DeleteInstanceAsync(context.Id, context.Version);
@@ -227,6 +242,8 @@
         };
 
         IDialogReference dialog = await DS.ShowAsync<ConfirmationDialog>("Confirm Deletion", parameters, options);
+        lockState.OnLockLost = dialog.Close;
+
         DialogResult? result = await dialog.Result;
         if (result == null || result.Canceled)
             return;
