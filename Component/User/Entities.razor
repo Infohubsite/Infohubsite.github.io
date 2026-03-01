@@ -119,17 +119,24 @@
     {
         LockState lockState = new();
 
-        if (context != null && await EIS.LockInstance(new Lock(context.Id, lockState.Invalidate)) is Result lockResult && !lockResult.IsSuccess)
+        if (context != null)
         {
-            if (lockResult.StatusCode == System.Net.HttpStatusCode.NotFound)
+            EntityInstance instance = await EIS.GetInstanceAsync(context.Id, true);
+
+            Result lockResult = await EIS.LockInstance(new Lock(context.Id, lockState.Invalidate));
+
+            if (!lockResult.IsSuccess)
             {
-                _entityInstances.Remove(context);
-                await NS.Show("Instance already deleted.", Severity.Warning);
-                Filter();
+                if (lockResult.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    _entityInstances.Remove(context);
+                    await NS.Show("Instance already deleted.", Severity.Warning);
+                    Filter();
+                }
+                else
+                    await NS.Show(lockResult.Exception?.Message ?? "Failed to acquire lock for the instance.", Severity.Warning);
+                return;
             }
-            else
-                await NS.Show(lockResult.Exception?.Message ?? "Failed to acquire lock for the instance.", Severity.Warning);
-            return;
         }
 
         DialogOptions options = new()
@@ -231,7 +238,8 @@
                                 return (bool)dresult.Data;
                             return false;
                         case System.Net.HttpStatusCode.PreconditionFailed:
-                            await NS.Show("The instance has been modified by another user. Please refresh and try again.", Severity.Warning);
+                            await NS.Show(result.Exception?.Message ?? "The instance has been modified by another user. Please refresh and try again.", Severity.Warning);
+                            await _dataLoader.Refresh(true);
                             return false;
                         default:
                             return result.IsSuccess;
