@@ -26,15 +26,15 @@ namespace Frontend.Component.Shared
 
     public class DataLoaderT<TArg> : DataLoaderBase
     {
-        [Parameter, EditorRequired] public Func<bool, TArg?, Task<List<string>>> LoadAction { get; set; }
+        [Parameter, EditorRequired] public Func<bool, TArg, Task<List<string>>> LoadAction { get; set; }
 
-        [Parameter] public TArg? InitialArg { get; set; }
+        [Parameter] public required TArg InitialArg { get; set; }
 
-        public Task Refresh(TArg? arg) => ExecuteLoad(true, arg);
+        public Task Refresh(TArg arg) => ExecuteLoad(true, arg);
 
         protected override Task OnInitializedAsync() => ExecuteLoad(false, InitialArg);
 
-        private async Task ExecuteLoad(bool refresh, TArg? arg)
+        private async Task ExecuteLoad(bool refresh, TArg arg)
         {
             StartLoading();
             try
